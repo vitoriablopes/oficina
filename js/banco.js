@@ -3,7 +3,8 @@ import { esc, plural, toast } from './util.js';
 import { inl, hydrate } from './render.js';
 import * as TTS from './speech.js';
 import { Store, save } from './store.js';
-import { exerciseBank, bankEntry, recordInList, matchQuery, materias, bump, qNodes } from './data.js';
+import { exerciseBank, bankEntry, recordInList, matchQuery, materias, activeMaterias, bump, qNodes, setStudyMat } from './data.js';
+import { refreshFocus } from './focus.js';
 import { blockHeader, blockBody, answerArea, wireAnswer, wireSay, wireStar, topicLine } from './aula.js';
 import { speechOf } from './render.js';
 import { isSaved } from './data.js';
@@ -20,6 +21,7 @@ const exName = (b, i, it) => {
 export const srcLine = (e, { materia = true } = {}) => `<span class="src-kind ${e.it.tipo}">${e.it.tipo === 'lista' ? 'Lista' : 'Aula'}</span> ${materia ? esc(e.it.materia) + ' · ' : ''}<a href="#${e.it.tipo}/${esc(e.it.id)}">${inl(e.it.titulo)}</a> · ${esc(exName(e.b, e.idx, e.it))}`;
 
 export function renderBanco(el, { go }) {
+  setStudyMat(F.mat || null); setTimeout(refreshFocus, 0);
   const all = exerciseBank();
   if (!all.length) { el.innerHTML = `<div class="card empty">O banco junta os exercícios de todas as listas. Ainda não há nenhuma lista.<div style="margin-top:12px"><button class="btn sm" data-goto="estudio">Importar listas</button></div></div>`; return; }
   el.innerHTML = `<div class="banco-filters card stack-s">
@@ -49,7 +51,7 @@ export function renderBanco(el, { go }) {
       <select class="select" data-f="org"><option value="">Listas e aulas (${filtered({ skip: 'org' }).length})</option><option value="lista" ${F.org === 'lista' ? 'selected' : ''}>Só das listas (${count(filtered({ skip: 'org' }), (e) => e.origem === 'lista')})</option><option value="aula" ${F.org === 'aula' ? 'selected' : ''}>Só checagens das aulas (${count(filtered({ skip: 'org' }), (e) => e.origem === 'aula')})</option></select>
       <select class="select" data-f="st">${STATUS.map(([v, l]) => `<option value="${v}" ${F.st === v ? 'selected' : ''}>${l} (${count(baseSt, (e) => passStatus(e, v))})</option>`).join('')}</select>
       ${F.q || F.mat || F.top || F.sub || F.st || F.org ? `<button class="btn xs ghost" data-clear>limpar filtros</button>` : ''}`;
-    sels.querySelectorAll('[data-f]').forEach((s) => (s.onchange = () => { F[s.dataset.f] = s.value; F.shown = 60; draw(); }));
+    sels.querySelectorAll('[data-f]').forEach((s) => (s.onchange = () => { F[s.dataset.f] = s.value; F.shown = 60; if (s.dataset.f === 'mat') { setStudyMat(F.mat || null); refreshFocus(); } draw(); }));
     sels.querySelector('[data-clear]')?.addEventListener('click', () => { Object.assign(F, { q: '', mat: '', top: '', sub: '', st: '', org: '', shown: 60 }); el.querySelector('[data-q]').value = ''; draw(); });
   }
   function drawBar(list) {
@@ -90,6 +92,7 @@ export function renderBanco(el, { go }) {
         const full = row.querySelector('[data-full]');
         if (!full.hidden) { full.hidden = true; full.innerHTML = ''; return; }
         full.hidden = false;
+        setStudyMat(e.it.mkey); refreshFocus();
         full.innerHTML = `<div class="bank-full t-${e.b.type}">${blockHeader(hdr(e), { saved: isSaved(e.it.id, e.idx) })}${blockBody({ ...e.b, topico: '', subtopico: '', descricao: '', origem: '' })}${answerArea(e.b, { rate: false })}</div>`;
         hydrate(full); wireAnswer(full, e.b, {}); wireStar(full, e.it.id, e.idx);
         wireSay(full.querySelector('[data-sayblock]'), () => speechOf(qNodes(e.b)));
@@ -128,6 +131,7 @@ export function openPratica(view, { go }) {
     const okN = Object.values(P.res).filter((r) => r.st === 'ok').length;
     if (!P.fila.length) return renderDone(P);
     const e = bankEntry(P.fila[0]);
+    setStudyMat(e.it.mkey); refreshFocus();
     const r = P.res[e.key] || {};
     const pct = total ? Math.round((okN / total) * 100) : 0;
     view.innerHTML = `<div class="lesson-shell fade-in">
@@ -179,4 +183,35 @@ export function openPratica(view, { go }) {
     view.querySelector('[data-err]')?.addEventListener('click', () => { startPractice(errados, 'Os que errei · ' + (P.titulo || '')); render(); });
   }
   render();
+}
+
+// ---------------------------------------------------------------
+//  Revisar hoje
+// ---------------------------------------------------------------
+/** O que vale revisar hoje: exercícios e checagens errados (ainda não acertados) e passo a passo não aprendido. */
+export function revisarHoje() {
+  const ativas = new Set(activeMaterias().map((m) => m.key));
+  const errados = exerciseBank().filter((e) => ativas.has(e.it.mkey) && !e.ok && e.erros > 0)
+    .sort((a, b) => b.erros - a.erros || (b.salvo ? 1 : 0) - (a.salvo ? 1 : 0)).slice(0, 12);
+  const PS = Store.state.progresso.passos || {};
+  const passos = [];
+  for (const m of activeMaterias()) for (const it of m.passos) it.parsed.blocks.forEach((b, k) => { const s2 = PS[it.id + '#' + k] || {}; if (!s2.ok) passos.push({ it, b, k, fav: !!s2.fav }); });
+  passos.sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0));
+  return { errados, passos: passos.filter((p) => p.fav).length ? passos.filter((p) => p.fav).slice(0, 6) : passos.slice(0, 4), nPassos: passos.length };
+}
+export function revisarCard() {
+  const R = revisarHoje();
+  if (!R.errados.length && !R.passos.length) return '';
+  return `<div class="card stack-s revisar"><div class="row between"><div class="caps muted">Revisar hoje</div>${R.errados.length ? '<button class="btn sm primary" data-revisar>Refazer os errados →</button>' : ''}</div>
+    ${R.errados.length ? `<div class="small">${plural(R.errados.length, 'exercício ou checagem que você errou', 'exercícios e checagens que você errou')} e ainda não acertou${R.errados.length === 12 ? ' (os 12 mais errados)' : ''}.</div>` : ''}
+    ${R.passos.length ? `<div class="small muted" style="margin-top:4px">${R.passos.some((p) => p.fav) ? 'Passo a passo favoritos ainda não aprendidos' : 'Passo a passo ainda não aprendidos'}:</div>
+      <ul class="rev-list">${R.passos.map((p) => `<li><a href="#passos/${esc(p.it.id)}">${p.fav ? '★ ' : ''}${inl(p.b.title || 'Tipo de questão')}</a> <span class="tiny muted">· ${esc(p.it.materia)}</span></li>`).join('')}</ul>${R.nPassos > R.passos.length ? `<div class="tiny muted">e mais ${R.nPassos - R.passos.length} no total.</div>` : ''}` : ''}
+  </div>`;
+}
+export function wireRevisar(root, go) {
+  root.querySelector('[data-revisar]')?.addEventListener('click', () => {
+    const R = revisarHoje();
+    startPractice(R.errados.map((e) => e.key), 'Revisar hoje');
+    go('#pratica');
+  });
 }

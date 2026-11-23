@@ -1,6 +1,9 @@
 // Acompanhar a matéria: anotações livres e avaliações (pesos, notas, nota necessária e previsão).
 import { esc, plural, toast, confirmBox, fmtDate, modal } from './util.js';
 import { Store, save } from './store.js';
+import { aulaProg, listaProg, tempoMateria, fmtTempo } from './data.js';
+import { keyOf } from './parser.js';
+import { inl } from './render.js';
 
 const num = (v) => { const t = String(v ?? '').trim().replace(',', '.'); if (t === '') return null; const n = Number(t); return Number.isFinite(n) ? n : null; };
 const fmt = (n, d = 2) => (n == null ? '—' : (Math.round(n * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: d }));
@@ -109,6 +112,82 @@ export function proxima(mkey) {
 const dias = (d) => Math.round((new Date(d + 'T12:00') - new Date(new Date().toISOString().slice(0, 10) + 'T12:00')) / 864e5);
 export const quando = (d) => { const n = dias(d); return n === 0 ? 'hoje' : n === 1 ? 'amanhã' : n > 1 ? `em ${n} dias` : `há ${-n} dias`; };
 
+// ---------------- Plano até a prova ----------------
+/** Tópicos da matéria, na ordem em que aparecem (aulas, essenciais, passo a passo, listas). */
+export function topicosDaMateria(m) {
+  const out = [];
+  const add = (t) => { if (t && !out.includes(t)) out.push(t); };
+  m.aulas.forEach((a) => add(a.meta.topico));
+  m.essenciais.forEach((e) => add(e.meta.topico));
+  m.passos.forEach((p) => add(p.meta.topico));
+  m.listas.forEach((l) => l.parsed.blocks.forEach((b) => add(b.topico)));
+  return out;
+}
+export function buildPlan(m, av) {
+  const tops = av.topicos || [];
+  const tag = keyOf(av.nome || '');
+  const porTag = !tops.length && tag && m.aulas.some((a) => a.tags.some((t) => keyOf(t) === tag));
+  const criterio = tops.length ? 'topicos' : porTag ? 'tag' : 'tudo';
+  const okAula = (a) => (criterio === 'topicos' ? tops.includes(a.meta.topico) : criterio === 'tag' ? a.tags.some((t) => keyOf(t) === tag) : true);
+  const okEx = (L, b) => (criterio === 'topicos' ? tops.includes(b.topico || L.meta.topico) : criterio === 'tag' ? L.tags.some((t) => keyOf(t) === tag) : true);
+  const okTop = (t) => (criterio === 'topicos' ? tops.includes(t) : true);
+  const units = [];
+  for (const a of m.aulas) if (okAula(a) && aulaProg(a.id)?.status !== 'concluida') units.push({ tipo: 'aula', it: a, peso: Math.max(1, (a.meta.tempo || 30) / 30), label: a.titulo });
+  for (const L of m.listas) {
+    const p = listaProg(L);
+    const faltam = L.parsed.blocks.filter((b, i) => okEx(L, b) && p?.res?.[i]?.st !== 'ok').length;
+    if (faltam) units.push({ tipo: 'lista', it: L, peso: Math.max(0.5, faltam / 5), label: L.titulo, n: faltam });
+  }
+  const PS = Store.state.progresso.passos || {};
+  const revisao = [];
+  for (const e of m.essenciais) if (okTop(e.meta.topico)) revisao.push({ tipo: 'essencial', it: e, label: 'Essenciais: ' + (e.meta.topico || e.titulo) });
+  for (const p of m.passos) if (okTop(p.meta.topico)) {
+    const n = p.parsed.blocks.filter((b, k) => !PS[p.id + '#' + k]?.ok).length;
+    if (n) revisao.push({ tipo: 'passos', it: p, label: `Passo a passo: ${p.meta.topico || p.titulo}`, n });
+  }
+  const N = av.data ? dias(av.data) : null;
+  if (N == null || N < 0) return { criterio, units, revisao, dias: [], N };
+  const hoje = new Date(); hoje.setHours(12, 0, 0, 0);
+  const day = (k) => { const d = new Date(hoje); d.setDate(d.getDate() + k); return d; };
+  const nCont = N >= 3 ? N - 1 : 1;
+  const plan = Array.from({ length: nCont }, (_, k) => ({ date: day(k), itens: [] }));
+  const total = units.reduce((a, u) => a + u.peso, 0);
+  const alvo = total / nCont;
+  let d = 0, acc = 0;
+  for (const u of units) {
+    if (acc >= alvo * 0.999 && d < nCont - 1) { d++; acc = 0; }
+    plan[d].itens.push(u); acc += u.peso;
+  }
+  if (N >= 3) plan.push({ date: day(N - 1), itens: revisao, revisao: true });
+  else plan[plan.length - 1].itens.push(...revisao);
+  return { criterio, units, revisao, dias: plan.filter((p) => p.itens.length), N };
+}
+export function planHtml(m, av, { compact = false } = {}) {
+  if (!av.data) return `<p class="small muted" style="margin:0">Dê uma data para a ${esc(av.nome || 'avaliação')} para montar o plano.</p>`;
+  const P = buildPlan(m, av);
+  const crit = P.criterio === 'topicos' ? `tópicos: ${esc(av.topicos.join(', '))}` : P.criterio === 'tag' ? `aulas e listas com a tag “${esc(keyOf(av.nome))}”` : 'a matéria toda (marque o que cai na avaliação para afinar)';
+  if (!P.units.length && !P.revisao.length) return `<p class="small" style="margin:0">Tudo em dia para a ${esc(av.nome)} ✦ <span class="muted">(${crit})</span></p>`;
+  const link = (u) => `<a href="#${u.tipo}/${esc(u.it.id)}">${inl(u.label)}</a>${u.n ? ` <span class="tiny muted">· ${u.n} ${u.tipo === 'lista' ? (u.n === 1 ? 'exercício' : 'exercícios') : 'a aprender'}</span>` : ''}`;
+  const ic = { aula: '❦', lista: '✐', essencial: '◆', passos: '↳' };
+  const dl = (dt, k) => (k === 0 ? 'Hoje' : k === 1 ? 'Amanhã' : `${SEM[dt.getDay()]}, ${dt.getDate()} ${MESES[dt.getMonth()]}`);
+  const hoje = new Date(); hoje.setHours(12, 0, 0, 0);
+  const days = compact ? P.dias.filter((p) => Math.round((p.date - hoje) / 864e5) === 0) : P.dias;
+  if (compact && !days.length) return '';
+  return `${compact ? '' : `<p class="tiny muted" style="margin:0 0 8px">Considerando ${crit}. O plano se refaz sozinho conforme você conclui as aulas e acerta os exercícios.</p>`}
+    <div class="plan">${days.map((p) => { const k = Math.round((p.date - hoje) / 864e5); return `<div class="plan-day ${k === 0 ? 'today' : ''}">${compact ? '' : `<div class="plan-d">${dl(p.date, k)}${p.revisao ? ' · revisão' : ''}</div>`}
+      <ul>${p.itens.map((u) => `<li><span class="plan-ic">${ic[u.tipo]}</span>${link(u)}</li>`).join('')}</ul></div>`; }).join('')}</div>`;
+}
+
+function tempoCard(k) {
+  const t = tempoMateria(k);
+  const days = []; const d = new Date();
+  for (let i = 13; i >= 0; i--) { const x = new Date(d); x.setDate(d.getDate() - i); const key = `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; days.push({ x, sec: t.dias[key] || 0 }); }
+  const max = Math.max(1, ...days.map((y) => y.sec));
+  return `<div class="card stack-s"><div class="row between"><h3>Tempo de estudo</h3><span class="tiny muted">conta nas telas de estudo desta matéria</span></div>
+    <div class="grid g3 tempo-grid"><div class="as-box"><div class="k">Hoje</div><div class="v">${fmtTempo(t.hoje)}</div></div><div class="as-box"><div class="k">7 dias</div><div class="v">${fmtTempo(t.semana)}</div></div><div class="as-box"><div class="k">Total</div><div class="v">${fmtTempo(t.total)}</div></div></div>
+    <div class="tempo-bars">${days.map((y, i) => `<div class="tb" title="${y.x.toLocaleDateString('pt-BR')}: ${fmtTempo(y.sec)}"><i style="height:${Math.round((y.sec / max) * 100)}%"></i><span>${i === 13 ? 'hoje' : y.x.getDate()}</span></div>`).join('')}</div></div>`;
+}
+
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
@@ -133,6 +212,8 @@ export function renderAcomp(el, m) {
           </div>
         </div></details>
     </div>
+    ${tempoCard(m.key)}
+    <div class="card stack-s" data-plancard><div class="row between"><h3>Plano até a prova</h3><select class="select topic-sel" data-planav></select></div><div data-plan></div></div>
     <div class="card stack-s"><div class="row between"><h3>Anotações</h3><span class="tiny muted" data-saved></span></div>
       <textarea class="textarea notas-livres" data-notas placeholder="Escreva aqui o que quiser sobre a matéria: combinados com o professor, sala, monitoria, o que cai na prova…">${esc(ac.notas || '')}</textarea></div>
   </div>`;
@@ -174,18 +255,32 @@ export function renderAcomp(el, m) {
       const peso = ac.modo === 'condicoes' ? '' : P ? `${fmt(((num(x.peso) || 0) / P) * 100, 0)}%` : '';
       return `<button class="av-row ${x.nota != null ? 'done' : ''} ${x.fora && x.nota == null ? 'fora' : ''} ${passada && x.nota == null ? 'late' : ''}" data-edit="${x.id}">
         <span class="av-date">${d ? `<b>${d.getDate()}</b><i>${MESES[d.getMonth()]}</i>` : '<b>?</b><i>data</i>'}</span>
-        <span class="av-name"><b>${esc(x.nome || 'Avaliação')}</b><small>${d ? `${SEM[d.getDay()]} · ${x.nota == null ? quando(x.data) : 'feita'}` : 'sem data'}${x.fora && x.nota == null ? ' · fora do cálculo' : ''}</small></span>
+        <span class="av-name"><b>${esc(x.nome || 'Avaliação')}</b><small>${d ? `${SEM[d.getDay()]} · ${x.nota == null ? quando(x.data) : 'feita'}` : 'sem data'}${x.fora && x.nota == null ? ' · fora do cálculo' : ''}${x.topicos?.length ? ` · ${plural(x.topicos.length, 'tópico')}` : ''}</small></span>
         ${peso ? `<span class="av-peso">${peso}</span>` : ''}
         <span class="av-nota">${x.nota != null ? `<b>${fmt(x.nota)}</b>` : x.prev != null ? `<em title="previsão">~${fmt(x.prev)}</em>` : '<span class="muted">—</span>'}</span>
       </button>`;
     }).join('')}</div>`;
     tbl.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => editAv(ac.avs.find((x) => x.id === b.dataset.edit))));
   }
-  const all = () => { drawTable(); drawSummary(); drawRegras(); };
+  let planSel = null;
+  function drawPlan() {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const ups = ac.avs.filter((x) => x.nota == null && x.data && x.data >= hoje).sort((a, b) => a.data.localeCompare(b.data));
+    const card = el.querySelector('[data-plancard]'), selE = el.querySelector('[data-planav]'), box = el.querySelector('[data-plan]');
+    if (!ups.length) { selE.hidden = true; box.innerHTML = `<p class="small muted" style="margin:0">${ac.avs.length ? 'Nenhuma avaliação futura com data. Dê uma data às próximas avaliações para montar o plano.' : 'Adicione as avaliações com data e marque o que cai em cada uma para montar o plano de estudo até a prova.'}</p>`; return; }
+    if (!ups.some((x) => x.id === planSel)) planSel = ups[0].id;
+    selE.hidden = ups.length < 2;
+    selE.innerHTML = ups.map((x) => `<option value="${x.id}" ${x.id === planSel ? 'selected' : ''}>${esc(x.nome || 'Avaliação')} · ${quando(x.data)}</option>`).join('');
+    selE.onchange = () => { planSel = selE.value; drawPlan(); };
+    const av = ups.find((x) => x.id === planSel);
+    box.innerHTML = `${ups.length < 2 ? `<div class="small" style="margin-bottom:6px"><b>${esc(av.nome)}</b> · ${quando(av.data)}</div>` : ''}${planHtml(m, av)}`;
+  }
+  const all = () => { drawTable(); drawSummary(); drawRegras(); drawPlan(); };
 
   // ---------- editar avaliação (janela) ----------
   function editAv(x, nova = false) {
     const cond = ac.modo === 'condicoes';
+    const tops = topicosDaMateria(m);
     modal(`<div class="stack"><h3>${nova ? 'Nova avaliação' : 'Avaliação'}</h3>
       <div><label class="lbl">Nome</label><input class="input" data-f="nome" value="${esc(x.nome || '')}" placeholder="ex.: P1, Trabalho, PF"></div>
       <div class="av-grid">
@@ -196,8 +291,12 @@ export function renderAcomp(el, m) {
       </div>
       ${cond ? '<p class="tiny muted" style="margin:0">Os pesos desta avaliação ficam em Configurar o cálculo › Condições.</p>' : ''}
       <label class="switch"><input type="checkbox" data-incl ${x.fora ? '' : 'checked'}><span class="tg"></span>Conta na nota que precisa tirar <span class="tiny muted">(desligado: usa a previsão)</span></label>
+      ${tops.length ? `<div><label class="lbl">O que cai nesta avaliação</label><div class="cai-grid">${tops.map((t) => `<label class="cai ${x.topicos?.includes(t) ? 'on' : ''}"><input type="checkbox" data-top value="${esc(t)}" ${x.topicos?.includes(t) ? 'checked' : ''}><span>${esc(t)}</span></label>`).join('')}</div>
+        <p class="tiny muted" style="margin:4px 0 0">Usado no plano até a prova. Sem nada marcado, o plano usa as aulas com a tag “${esc(keyOf(x.nome || 'p1') || 'p1')}” ou, se não houver, a matéria toda.</p></div>`
+        : '<p class="tiny muted" style="margin:0">Quando a matéria tiver aulas com @topico, você poderá marcar aqui o que cai nesta avaliação (para o plano até a prova).</p>'}
       <div class="row between">${nova ? '<span></span>' : '<button class="btn danger" data-del>Excluir</button>'}<div class="row" style="gap:6px"><button class="btn ghost" data-close>Cancelar</button><button class="btn primary" data-ok>Salvar</button></div></div></div>`, (box, close) => {
       box.querySelector('[data-f="nome"]').focus();
+      box.querySelectorAll('[data-top]').forEach((c) => (c.onchange = () => c.closest('.cai').classList.toggle('on', c.checked)));
       box.querySelector('[data-ok]').onclick = () => {
         const g = (k) => box.querySelector(`[data-f="${k}"]`);
         x.nome = g('nome').value.trim() || 'Avaliação';
@@ -205,6 +304,7 @@ export function renderAcomp(el, m) {
         if (g('peso')) x.peso = num(g('peso').value) ?? 0;
         x.nota = num(g('nota').value); x.prev = num(g('prev').value);
         x.fora = !box.querySelector('[data-incl]').checked;
+        x.topicos = [...box.querySelectorAll('[data-top]:checked')].map((c) => c.value);
         if (nova) {
           ac.avs.push(x);
           if (ac.modo === 'condicoes') ac.regras.forEach((r) => { if (!r.cond) (r.pesos ||= {})[x.id] = 1; });

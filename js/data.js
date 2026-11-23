@@ -36,6 +36,10 @@ export function materias() {
     if (!m) { m = { key: it.mkey, nome: it.materia, aulas: [], listas: [], essenciais: [], passos: [] }; map.set(it.mkey, m); }
     ({ lista: m.listas, aula: m.aulas, essencial: m.essenciais, passos: m.passos }[it.tipo] || m.aulas).push(it);
   }
+  // matérias criadas à mão, ainda sem aulas nem listas
+  for (const [k, c] of Object.entries(Store.state.perfil.materias || {})) {
+    if (c?.nome && !map.has(k)) map.set(k, { key: k, nome: c.nome, aulas: [], listas: [], essenciais: [], passos: [] });
+  }
   return [...map.values()].map((m) => ({ ...m, cfg: matCfg(m.key) }))
     .sort((a, b) => (a.cfg.ordem ?? 1e6) - (b.cfg.ordem ?? 1e6) || a.nome.localeCompare(b.nome, 'pt'));
 }
@@ -45,6 +49,14 @@ export const activeMaterias = () => materias().filter((m) => !m.cfg.arquivada);
 // ---------------- Configuração das matérias (período, arquivada, ordem) ----------------
 export const PERIODO_RE = /^\d{2}\.[1-3]$/;
 export const matCfg = (k) => Store.state.perfil.materias?.[k] || {};
+/** Sigla usada nos ids e nomes de arquivo (a salva ou uma gerada do nome). */
+export function siglaOf(m) {
+  if (m.cfg?.sigla) return m.cfg.sigla;
+  const w = deaccent(m.nome).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((x) => x && !['de', 'da', 'do', 'dos', 'das', 'e', 'a', 'o'].includes(x));
+  const num = w.filter((x) => /^\d+$/.test(x)).join('');
+  const letras = w.filter((x) => !/^\d+$/.test(x));
+  return ((letras.length === 1 ? letras[0].slice(0, 6) : letras.map((x) => x.slice(0, 3)).join('').slice(0, 9)) + num) || 'materia';
+}
 export function setMatCfg(k, patch) {
   const P = (Store.state.perfil.materias ||= {});
   P[k] = { ...(P[k] || {}), ...patch };
@@ -89,13 +101,35 @@ export function streak() {
   while (active(dayKey(d))) { n++; d.setDate(d.getDate() - 1); }
   return n;
 }
-let activeUntil = 0, acc = 0;
+let activeUntil = 0, acc = 0, studyMat = null;
+const pendSec = {};
 export const bump = () => { activeUntil = Date.now() + 120000; };
+/** Matéria que está sendo estudada agora (null fora das telas de estudo). */
+export const setStudyMat = (k) => { if (k !== studyMat) { flushTempo(); studyMat = k || null; } if (k) bump(); };
+export const getStudyMat = () => studyMat;
+function flushTempo() {
+  const ks = Object.keys(pendSec); if (!ks.length) return;
+  const T = (Store.state.progresso.tempo ||= {}); const d = dayKey();
+  for (const k of ks) { (T[k] ||= {})[d] = (T[k][d] || 0) + pendSec[k]; delete pendSec[k]; }
+  save('progresso');
+}
 setInterval(() => {
   if (typeof document === 'undefined' || document.visibilityState !== 'visible' || Date.now() > activeUntil) return;
   acc += 15;
-  if (acc >= 60) { acc = 0; dayRec().min++; save('progresso'); }
+  if (studyMat) pendSec[studyMat] = (pendSec[studyMat] || 0) + 15;
+  if (acc >= 60) { acc = 0; dayRec().min++; flushTempo(); save('progresso'); }
 }, 15000);
+if (typeof window !== 'undefined') window.addEventListener('pagehide', flushTempo);
+/** Segundos estudados numa matéria: {hoje, semana, total, dias: {dia: seg}} */
+export function tempoMateria(k) {
+  const T = { ...(Store.state.progresso.tempo?.[k] || {}) };
+  if (pendSec[k]) T[dayKey()] = (T[dayKey()] || 0) + pendSec[k];
+  const hoje = dayKey(); const d7 = new Date(); d7.setDate(d7.getDate() - 6); const k7 = dayKey(d7);
+  let semana = 0, total = 0;
+  for (const [d, sec] of Object.entries(T)) { total += sec; if (d >= k7) semana += sec; }
+  return { hoje: T[hoje] || 0, semana, total, dias: T };
+}
+export const fmtTempo = (sec) => { const m = Math.round(sec / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`; };
 
 // ---------------- Aulas ----------------
 export const aulaProg = (id) => Store.state.progresso.aulas[id];

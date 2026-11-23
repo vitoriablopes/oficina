@@ -84,20 +84,27 @@ export function answerArea(b, { state = null, rate = true, rateLabel = 'Como foi
     </div>`;
 }
 export function wireAnswer(el, b, { onRate, onReveal, open = false } = {}) {
-  const hint = el.querySelector('[data-hint]'), fml = el.querySelector('[data-fml]'), show = el.querySelector('[data-show]');
-  hint?.addEventListener('click', () => { el.querySelector('[data-hintbox]').hidden = false; hint.remove(); fitMath(el); bump(); });
-  fml?.addEventListener('click', () => { el.querySelector('[data-fmlbox]').hidden = false; fml.remove(); fitMath(el); bump(); });
-  const reveal = (scroll) => {
-    el.querySelector('[data-ansbox]').hidden = false; show.remove(); hint?.remove(); fml?.remove();
-    el.querySelector('[data-hintbox]') && (el.querySelector('[data-hintbox]').hidden = false);
-    el.querySelector('[data-fmlbox]') && (el.querySelector('[data-fmlbox]').hidden = false);
-    fitMath(el);
-    if (!scroll) return;
-    bump(); onReveal?.();
-    el.querySelector('[data-ansbox]').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // cada botão mostra e oculta a própria caixa
+  const toggle = (btn, box, nome, cb) => {
+    if (!btn || !box) return null;
+    const set = (on, scroll) => {
+      box.hidden = !on;
+      btn.textContent = (on ? 'Ocultar ' : 'Mostrar ') + nome;
+      btn.classList.toggle('is-open', on);
+      if (on) { fitMath(el); bump(); cb?.(scroll); }
+    };
+    btn.onclick = () => set(box.hidden, true);
+    return set;
   };
-  show.onclick = () => reveal(true);
-  if (open) reveal(false);
+  toggle(el.querySelector('[data-hint]'), el.querySelector('[data-hintbox]'), 'dica');
+  toggle(el.querySelector('[data-fml]'), el.querySelector('[data-fmlbox]'), 'fórmula');
+  let first = true;
+  const setAns = toggle(el.querySelector('[data-show]'), el.querySelector('[data-ansbox]'), 'resposta', (scroll) => {
+    if (!scroll) return;
+    if (first) { first = false; onReveal?.(); }
+    el.querySelector('[data-ansbox]').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+  if (open) setAns?.(true, false);
   const sa = el.querySelector('[data-sayans]'); if (sa) wireSay(sa, () => answerSpeech(b));
   el.querySelectorAll('[data-rate]').forEach((r) => (r.onclick = () => {
     el.querySelectorAll('[data-rate]').forEach((x) => x.classList.toggle('on', x === r));

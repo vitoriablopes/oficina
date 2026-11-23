@@ -190,7 +190,8 @@ function parseBlock(b, warn, midias) {
 
   if (b.type === 'formula') {
     const nodes = rich('_');
-    return { nodes, leitura: plainText('leitura'), topico: plainText('topico'), subtopico: plainText('subtopico'), descricao: plainText('descricao'), empty: !nodes.length };
+    const leituras = (groups.leitura || []).map((l) => l.text.trim()).filter(Boolean);
+    return { nodes, leitura: leituras.join('. '), leituras, topico: plainText('topico'), subtopico: plainText('subtopico'), descricao: plainText('descricao'), empty: !nodes.length };
   }
   if (b.type === 'questao') {
     if (groups._.some((l) => l.text.trim())) groups.passos = [...groups._, ...(groups.passos || [])];

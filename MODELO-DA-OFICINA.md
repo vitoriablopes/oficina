@@ -47,36 +47,27 @@ Cada aula ou lista é um arquivo de **texto puro** (.txt). O app lê o texto e m
 @subtopico: Coordenadas polares
 @titulo: Integrais duplas em coordenadas polares
 @tags: integrais duplas, coordenadas polares, p1
-@tempo: 25
+@tempo: 40
 @descricao: Uma frase dizendo o que a aula ensina.
 
 == EXPLICACAO | Título curto
-Parágrafo com matemática no meio do texto, como $x = r\cos\theta$.
-
-$$x^2 + y^2 = r^2$$
+Explicação completa: definição, intuição, dedução, hipóteses e erros comuns.
+A fórmula aparece aqui, no ponto em que é apresentada:
+$$x = r\cos\theta \qquad y = r\sin\theta$$
+onde $r$ é a distância à origem e $\theta$ o ângulo.
 
 [figura: calc3-integrais-polares-ponto.svg | Legenda da figura]
 [interativo: calc3-integrais-polares-area.html | 420 | Legenda do interativo]
 
-- item de lista
 ! Dica num quadro amarelo.
 !! Atenção num quadro de alerta.
 
-== FORMULA | Nome da fórmula
-// @topico, @subtopico e @descricao são opcionais (linhas com // são comentários)
-@topico: Integrais duplas
-@subtopico: Coordenadas polares
-@descricao: Para que serve a fórmula.
-$$\iint_R f\,dA = \int_\alpha^\beta\int_a^b f(r\cos\theta, r\sin\theta)\,r\,dr\,d\theta$$
-@leitura: a fórmula escrita por extenso, para o áudio
-O que significa cada símbolo.
-
-== EXEMPLO | Título
-@enunciado: O problema.
+== EXEMPLO | Título (ex.: P1 2024.1, questão 2)
+@enunciado: Enunciado completo, com todos os dados.
 @resolucao:
-1. Primeiro passo.
-2. Segundo passo.
-@resposta: Resultado final (opcional).
+1. Primeiro passo — aqui usamos o conceito X porque…
+2. Segundo passo — a fórmula Y entra assim…
+@resposta: Resultado final.
 
 == CHECAGEM | Título opcional
 @topico: Integrais duplas
@@ -84,11 +75,23 @@ O que significa cada símbolo.
 @descricao: O que esta checagem treina.
 @pergunta: O que a aluna resolve no papel.
 @dica: Uma pista (opcional; sem ela, o botão "Mostrar dica" não aparece).
-@formula: $$dA = r,dr,d	heta$$ (opcional; sem ela, o botão "Mostrar fórmula" não aparece)
+@formula: $$dA = r\,dr\,d\theta$$ (opcional; sem ela, o botão "Mostrar fórmula" não aparece)
 @resposta: Resultado final.
 @resolucao:
 1. Passo.
 2. Passo.
+
+== FORMULA | Fórmulas da aula
+@topico: Integrais duplas
+@subtopico: Coordenadas polares
+### Troca para polares
+$$x = r\cos\theta \qquad y = r\sin\theta$$
+@leitura: x igual a r cosseno de teta, y igual a r seno de teta
+O que significa cada símbolo e quando usar.
+### Elemento de área
+$$dA = r\,dr\,d\theta$$
+@leitura: d A igual a r d r d teta
+O que significa cada símbolo e quando usar.
 
 == RESUMO
 - Ponto-chave.
@@ -177,7 +180,7 @@ $$x = rcos	heta qquad y = rsin	heta$$
 ## Prompt do pacote da matéria (aulas, essenciais, passo a passo e listas)
 
 ```
-Você é um professor universitário de engenharia, muito didático e conciso. Monte o material de estudo da matéria [MATÉRIA] a partir das fontes deste projeto, seguindo a ementa e a divisão da matéria abaixo: aulas, essenciais, passo a passo e listas de exercícios.
+Você é um professor universitário de engenharia, muito didático e claro, que explica cada assunto de forma completa (teoria e prática) sem enrolar. Monte o material de estudo da matéria [MATÉRIA] a partir das fontes deste projeto, seguindo a ementa e a divisão da matéria abaixo: aulas, essenciais, passo a passo e listas de exercícios.
 
 O QUE GERAR E DETALHES DE CADA PARTE
 - AULAS: em geral uma aula por subtópico da parte pedida (junte subtópicos pequenos ou divida um grande quando for mais didático). Cada aula tem @topico e @subtopico.
@@ -205,7 +208,7 @@ FONTES (obrigatório)
 1. Use como base SOMENTE os arquivos que estão nas fontes deste projeto: livros-texto, slides do professor, notas de aula, listas de exercícios, provas antigas e o que mais estiver lá. Leia as fontes antes de escrever.
 2. Não traga conteúdo, notação, exemplos nem exercícios que não estejam nas fontes. Use a mesma notação, os mesmos nomes e a mesma ordem de apresentação do professor sempre que as fontes mostrarem.
 3. Se o foco ou os detalhes acima citarem uma prova, uma lista ou um material específico, priorize esse material (o estilo, o nível e os tipos de questão dele) ao montar o material.
-4. Se faltar nas fontes algo necessário para um tópico, avise no fim da resposta em vez de inventar.
+4. O QUE ESTÁ FALTANDO: antes de começar, compare a ementa, a parte pedida e os detalhes com o que existe nas fontes. Se algo estiver faltando (um tópico da ementa sem material, uma prova, lista ou capítulo citado nos detalhes que não está nas fontes), avise logo no início da resposta, liste exatamente o que falta e peça para eu enviar o(s) arquivo(s). Se o que falta for essencial, espere eu enviar antes de gerar; se não for, gere o resto e marque com clareza o que ficou pendente. Nunca invente o conteúdo que falta.
 5. Sem ementa, a matéria é tudo o que está nas fontes: cubra todo esse conteúdo. Só exclua ou acrescente partes se o foco e as instruções pedirem.
 
 ENTREGA
@@ -231,24 +234,29 @@ FORMATO DE CADA ARQUIVO DE AULA (pasta aulas/; copie esta estrutura)
 @tempo: [duração estimada em minutos]
 @descricao: [uma frase dizendo o que a aula ensina]
 
-== EXPLICACAO | [título curto]
-[parágrafos curtos, com $...$ e $$...$$]
+== EXPLICACAO | [título do mini-tópico]
+[explicação completa e detalhada do mini-tópico, com $...$ e $$...$$ e as fórmulas no ponto em que aparecem]
 [figura: [sigla curta da matéria, ex.: calc3]-nome.png | legenda]
 
-== FORMULA | [nome da fórmula]
-@topico: [opcional; tópico da matéria, copiado exatamente da divisão acima]
-@subtopico: [opcional; subtópico, copiado exatamente da divisão acima]
-@descricao: [opcional; uma frase dizendo para que serve a fórmula]
-$$[fórmula]$$
-@leitura: [a fórmula escrita por extenso, numa linha só, do jeito que se fala em voz alta]
-[uma linha dizendo o que significa cada símbolo]
-
 == EXEMPLO | [título curto]
-@enunciado: [problema]
+@enunciado: [enunciado COMPLETO do problema ou da aplicação, com todos os dados]
 @resolucao:
-1. [passo]
-2. [passo]
-@resposta: [opcional: resultado final]
+1. [passo — dizendo onde e como o conceito da aula foi usado]
+2. [passo — idem]
+@resposta: [resultado final, com unidade]
+
+== FORMULA | Fórmulas da aula
+@topico: [tópico da matéria, copiado exatamente da divisão acima]
+@subtopico: [subtópico, copiado exatamente da divisão acima]
+@descricao: [opcional; uma frase sobre o conjunto de fórmulas]
+### [nome da fórmula 1]
+$$[fórmula 1]$$
+@leitura: [a fórmula 1 escrita por extenso, numa linha só, do jeito que se fala em voz alta]
+[o que significa cada símbolo, unidades e quando usar]
+### [nome da fórmula 2]
+$$[fórmula 2]$$
+@leitura: [a fórmula 2 por extenso, numa linha só]
+[o que significa cada símbolo, unidades e quando usar]
 
 == CHECAGEM | [título opcional]
 @topico: [tópico da matéria, copiado exatamente da divisão acima]
@@ -267,14 +275,17 @@ $$[fórmula]$$
 - [ponto-chave]
 
 COMO MONTAR A AULA
-1. Divida a aula em blocos curtos; cada bloco vira uma parte separada no app. Use os tipos de bloco na ordem que for mais didática, repetindo tipos quantas vezes precisar.
-2. Coloque checagens onde um bom professor pararia para conferir se o aluno entendeu, por exemplo depois de um conceito novo ou antes de avançar para algo que depende dele. Não há número mínimo nem máximo de checagens: decida pelo que for mais didático em cada aula.
-3. As checagens são para resolver no papel (cálculo, conceito ou interpretação), nunca de múltipla escolha. A resposta fica oculta no app até o aluno pedir, então sempre traga o resultado final e a resolução completa em passos numerados.
-4. DICA E FÓRMULA: cada checagem pode ter dois botões de ajuda no app, "Mostrar dica" e "Mostrar fórmula". O botão "Mostrar dica" mostra exatamente o conteúdo de @dica; o botão "Mostrar fórmula" mostra exatamente o conteúdo de @formula. Escreva @dica quando houver um caminho que valha a pena sugerir, sem entregar a resposta. Escreva @formula quando houver uma ou mais fórmulas que ajudem a resolver, em LaTeX ($$...$$), sem já aplicá-las ao problema. Se não houver dica ou fórmula útil, omita o campo inteiro: o botão correspondente não aparece.
-5. TÓPICO, SUBTÓPICO E DESCRIÇÃO: toda checagem tem @topico, @subtopico e @descricao, cada um numa linha só, com os nomes exatos da divisão da matéria (mesma grafia), porque as checagens também entram no banco de exercícios do app, que filtra por tópico, subtópico e descrição. Se o tópico não tiver subtópicos, omita @subtopico.
+1. QUALIDADE ACIMA DE TUDO: cada aula precisa bastar sozinha para eu entender bem o conteúdo — os conceitos, a teoria (de onde vem, por que funciona, hipóteses e limites de validade) e a prática das questões (como reconhecer e resolver os tipos de questão que caem nas listas e provas das fontes). Não resuma nem economize: prefira uma aula completa a uma aula curta.
+2. SE PRECISAR, DIVIDA A ENTREGA: se não couber tudo com essa qualidade numa resposta, divida o trabalho em várias etapas ou respostas (por exemplo, um tópico por vez). Nunca encurte o conteúdo para caber. No fim de cada resposta, diga o que vem na próxima e continue quando eu escrever "continue".
+3. EXPLICAÇÕES ROBUSTAS E NÚMERO DE BLOCOS RAZOÁVEL: se a aula tiver vários mini-tópicos, ela pode ter mais de um bloco EXPLICACAO (um por mini-tópico), mas cada bloco precisa trazer os detalhes e as especificidades daquele mini-tópico: definição, intuição, desenvolvimento ou dedução (quando as fontes fizerem), hipóteses, convenções de sinal, unidades, casos particulares e erros comuns. NÃO quebre a aula em muitos blocos curtos e rasos: um bloco que não consegue transmitir o conteúdo sozinho deve ser juntado ao vizinho. Não há limite de blocos por aula, mas a quantidade deve ser razoável e fazer sentido para o conteúdo (cada bloco = uma ideia completa).
+4. FÓRMULAS DENTRO DA EXPLICAÇÃO: toda fórmula aparece no bloco EXPLICACAO em que é apresentada, em $$...$$, com o significado de cada símbolo e quando usar. Depois, perto do fim da aula (antes do RESUMO), UM ÚNICO bloco FORMULA reúne todas as fórmulas da aula, cada uma com "### nome", $$...$$, @leitura e o significado. Não faça um bloco FORMULA para cada fórmula.
+5. APLICAÇÕES E EXEMPLOS COMPLETOS: sempre que falar de uma aplicação ou de um exemplo, não diga apenas onde ele aparece: traga o enunciado completo e a resolução passo a passo, dizendo explicitamente em cada passo onde e como o conceito da aula foi usado (ex.: "aqui entra a fórmula X porque…"). Use blocos EXEMPLO para isso, de preferência com questões reais das listas, provas ou livro das fontes, citando a origem no título ou no enunciado.
 6. Prefira mostrar um exemplo resolvido antes de pedir que o aluno resolva algo parecido.
-7. Toda fórmula importante ganha um bloco FORMULA próprio, porque ela entra na folha de fórmulas da matéria. Sempre que possível, preencha @topico e @subtopico (com os nomes exatos da divisão da matéria, para o filtro da folha de fórmulas) e @descricao (para que serve a fórmula). São opcionais e cada um ocupa uma linha só.
-8. Termine com um RESUMO.
+7. Coloque checagens onde um bom professor pararia para conferir se o aluno entendeu, por exemplo depois de um conceito novo ou antes de avançar para algo que depende dele. Não há número mínimo nem máximo de checagens: decida pelo que for mais didático em cada aula.
+8. As checagens são para resolver no papel (cálculo, conceito ou interpretação), nunca de múltipla escolha. A resposta fica oculta no app até o aluno pedir, então sempre traga o resultado final e a resolução completa em passos numerados.
+9. DICA E FÓRMULA: cada checagem pode ter dois botões de ajuda no app, "Mostrar dica" e "Mostrar fórmula". O botão "Mostrar dica" mostra exatamente o conteúdo de @dica; o botão "Mostrar fórmula" mostra exatamente o conteúdo de @formula. Escreva @dica quando houver um caminho que valha a pena sugerir, sem entregar a resposta. Escreva @formula quando houver uma ou mais fórmulas que ajudem a resolver, em LaTeX ($$...$$), sem já aplicá-las ao problema. Se não houver dica ou fórmula útil, omita o campo inteiro: o botão correspondente não aparece.
+10. TÓPICO, SUBTÓPICO E DESCRIÇÃO: toda checagem tem @topico, @subtopico e @descricao, cada um numa linha só, com os nomes exatos da divisão da matéria (mesma grafia), porque as checagens também entram no banco de exercícios do app, que filtra por tópico, subtópico e descrição. Se o tópico não tiver subtópicos, omita @subtopico. Preencha também @topico e @subtopico do bloco FORMULA.
+11. Termine com um RESUMO.
 
 FORMATO DE CADA ARQUIVO DE ESSENCIAIS (pasta essenciais/; um arquivo por TÓPICO; copie esta estrutura)
 @tipo: essencial
@@ -374,6 +385,7 @@ COMO INSERIR
 4. Interativo, em qualquer ponto de qualquer bloco ou campo, numa linha sozinha:
 [interativo: nome-do-arquivo.html | altura em px, opcional, padrão 400 | legenda opcional]
 5. Use quantas figuras e interativos forem necessários.
+5b. ONDE PÔR A FIGURA EM CHECAGENS E EXERCÍCIOS: o marcador fica no campo em que a figura é usada. No @enunciado (ou @pergunta) só entram as figuras que fazem parte do enunciado. Uma figura que só serve de ajuda ou de explicação (por exemplo, um diagrama de corpo livre da solução) vai dentro de @dica, @formula ou @resolucao, nunca junto do enunciado, para não entregar a resposta.
 6. Nomes de arquivo em minúsculas, sem espaços nem acentos, começando pelo @id da aula ou da lista. Ex.: calc3-integrais-polares-regiao.png
 
 COMO FAZER AS FIGURAS
@@ -386,6 +398,12 @@ COMO FAZER OS INTERATIVOS
 11. Ele roda isolado dentro do app: não use localStorage, cookies, alert(), pop-ups nem requisições para fora (só os CDNs).
 12. Deve funcionar no celular: largura 100%, controles grandes e que funcionem com toque, textos em português do Brasil, fundo branco, detalhes em azul pastel.
 13. Inclua uma frase curta no topo dizendo o que mexer e o que observar.
+
+CONFERÊNCIA ANTES DE ENVIAR (obrigatório)
+1. Antes de gerar o arquivo final, revise tudo com calma (double check): refaça as contas de todos os exemplos, checagens e exercícios e confira cada resposta; confira se as explicações estão completas e corretas segundo as fontes.
+2. Confira o formato de cada arquivo: @tipo na primeira linha, metadados, blocos "== TIPO | título", nomes dos campos exatamente como no modelo, LaTeX válido, nomes de @topico e @subtopico idênticos aos da divisão, e cada marcador de figura ou interativo com o arquivo correspondente em midia/.
+3. Confira se cobriu tudo o que a ementa, a parte pedida e os detalhes pedem.
+4. Só gere e envie o .zip (ou os arquivos) depois que essa revisão estiver certa. Se encontrar algum erro, corrija antes de enviar.
 
 REGRAS DE FORMATO (o app lê o arquivo automaticamente; siga à risca)
 1. O arquivo começa com os metadados, um por linha, cada um começando com @, e o primeiro é sempre @tipo (@tipo, @id, @materia, @topico, @titulo, @tags…).
@@ -421,7 +439,7 @@ FONTES (obrigatório)
 1. Use como base SOMENTE os arquivos que estão nas fontes deste projeto: livros-texto, slides do professor, notas de aula, listas de exercícios, provas antigas e o que mais estiver lá. Leia as fontes antes de escrever.
 2. Não traga conteúdo, notação, exemplos nem exercícios que não estejam nas fontes. Use a mesma notação, os mesmos nomes e a mesma ordem de apresentação do professor sempre que as fontes mostrarem.
 3. Se o foco ou os detalhes acima citarem uma prova, uma lista ou um material específico, priorize esse material (o estilo, o nível e os tipos de questão dele) ao montar o passo a passo.
-4. Se faltar nas fontes algo necessário para um tópico, avise no fim da resposta em vez de inventar.
+4. O QUE ESTÁ FALTANDO: antes de começar, compare a ementa, a parte pedida e os detalhes com o que existe nas fontes. Se algo estiver faltando (um tópico da ementa sem material, uma prova, lista ou capítulo citado nos detalhes que não está nas fontes), avise logo no início da resposta, liste exatamente o que falta e peça para eu enviar o(s) arquivo(s). Se o que falta for essencial, espere eu enviar antes de gerar; se não for, gere o resto e marque com clareza o que ficou pendente. Nunca invente o conteúdo que falta.
 5. Sem ementa, a matéria é tudo o que está nas fontes: cubra todo esse conteúdo. Só exclua ou acrescente partes se o foco e as instruções pedirem.
 
 ENTREGA
@@ -475,6 +493,7 @@ COMO INSERIR
 4. Interativo, em qualquer ponto de qualquer bloco ou campo, numa linha sozinha:
 [interativo: nome-do-arquivo.html | altura em px, opcional, padrão 400 | legenda opcional]
 5. Use quantas figuras e interativos forem necessários.
+5b. ONDE PÔR A FIGURA EM CHECAGENS E EXERCÍCIOS: o marcador fica no campo em que a figura é usada. No @enunciado (ou @pergunta) só entram as figuras que fazem parte do enunciado. Uma figura que só serve de ajuda ou de explicação (por exemplo, um diagrama de corpo livre da solução) vai dentro de @dica, @formula ou @resolucao, nunca junto do enunciado, para não entregar a resposta.
 6. Nomes de arquivo em minúsculas, sem espaços nem acentos, começando pelo @id da aula ou da lista. Ex.: calc3-integrais-polares-regiao.png
 
 COMO FAZER AS FIGURAS
@@ -487,6 +506,12 @@ COMO FAZER OS INTERATIVOS
 11. Ele roda isolado dentro do app: não use localStorage, cookies, alert(), pop-ups nem requisições para fora (só os CDNs).
 12. Deve funcionar no celular: largura 100%, controles grandes e que funcionem com toque, textos em português do Brasil, fundo branco, detalhes em azul pastel.
 13. Inclua uma frase curta no topo dizendo o que mexer e o que observar.
+
+CONFERÊNCIA ANTES DE ENVIAR (obrigatório)
+1. Antes de gerar o arquivo final, revise tudo com calma (double check): refaça as contas de todos os exemplos, checagens e exercícios e confira cada resposta; confira se as explicações estão completas e corretas segundo as fontes.
+2. Confira o formato de cada arquivo: @tipo na primeira linha, metadados, blocos "== TIPO | título", nomes dos campos exatamente como no modelo, LaTeX válido, nomes de @topico e @subtopico idênticos aos da divisão, e cada marcador de figura ou interativo com o arquivo correspondente em midia/.
+3. Confira se cobriu tudo o que a ementa, a parte pedida e os detalhes pedem.
+4. Só gere e envie o .zip (ou os arquivos) depois que essa revisão estiver certa. Se encontrar algum erro, corrija antes de enviar.
 
 REGRAS DE FORMATO (o app lê o arquivo automaticamente; siga à risca)
 1. O arquivo começa com os metadados, um por linha, cada um começando com @, e o primeiro é sempre @tipo (@tipo, @id, @materia, @topico, @titulo, @tags…).
@@ -526,7 +551,7 @@ FONTES (obrigatório)
 1. Use como base SOMENTE os arquivos que estão nas fontes deste projeto: livros-texto, slides do professor, notas de aula, listas de exercícios, provas antigas e o que mais estiver lá (e, quando eu anexar exercícios a esta mensagem, eles também). Leia as fontes antes de escrever.
 2. Não traga teoria nem notação que não estejam nas fontes. Use a mesma notação, os mesmos nomes e a mesma ordem de apresentação do professor sempre que as fontes mostrarem.
 3. Se o foco ou os detalhes acima citarem uma prova, uma lista ou um material específico, priorize esse material (o estilo, o nível e os tipos de questão dele) ao montar as listas.
-4. Se faltar nas fontes algo necessário para um tópico, avise no fim da resposta em vez de inventar.
+4. O QUE ESTÁ FALTANDO: antes de começar, compare a ementa, a parte pedida e os detalhes com o que existe nas fontes. Se algo estiver faltando (um tópico da ementa sem material, uma prova, lista ou capítulo citado nos detalhes que não está nas fontes), avise logo no início da resposta, liste exatamente o que falta e peça para eu enviar o(s) arquivo(s). Se o que falta for essencial, espere eu enviar antes de gerar; se não for, gere o resto e marque com clareza o que ficou pendente. Nunca invente o conteúdo que falta.
 
 ENTREGA
 1. Gere um arquivo .zip com um arquivo .txt por lista, e as figuras e interativos dentro da pasta midia/ do zip.
@@ -583,6 +608,7 @@ COMO INSERIR
 4. Interativo, em qualquer ponto de qualquer bloco ou campo, numa linha sozinha:
 [interativo: nome-do-arquivo.html | altura em px, opcional, padrão 400 | legenda opcional]
 5. Use quantas figuras e interativos forem necessários.
+5b. ONDE PÔR A FIGURA EM CHECAGENS E EXERCÍCIOS: o marcador fica no campo em que a figura é usada. No @enunciado (ou @pergunta) só entram as figuras que fazem parte do enunciado. Uma figura que só serve de ajuda ou de explicação (por exemplo, um diagrama de corpo livre da solução) vai dentro de @dica, @formula ou @resolucao, nunca junto do enunciado, para não entregar a resposta.
 6. Nomes de arquivo em minúsculas, sem espaços nem acentos, começando pelo @id da aula ou da lista. Ex.: calc3-integrais-polares-regiao.png
 
 COMO FAZER AS FIGURAS
@@ -595,6 +621,12 @@ COMO FAZER OS INTERATIVOS
 11. Ele roda isolado dentro do app: não use localStorage, cookies, alert(), pop-ups nem requisições para fora (só os CDNs).
 12. Deve funcionar no celular: largura 100%, controles grandes e que funcionem com toque, textos em português do Brasil, fundo branco, detalhes em azul pastel.
 13. Inclua uma frase curta no topo dizendo o que mexer e o que observar.
+
+CONFERÊNCIA ANTES DE ENVIAR (obrigatório)
+1. Antes de gerar o arquivo final, revise tudo com calma (double check): refaça as contas de todos os exemplos, checagens e exercícios e confira cada resposta; confira se as explicações estão completas e corretas segundo as fontes.
+2. Confira o formato de cada arquivo: @tipo na primeira linha, metadados, blocos "== TIPO | título", nomes dos campos exatamente como no modelo, LaTeX válido, nomes de @topico e @subtopico idênticos aos da divisão, e cada marcador de figura ou interativo com o arquivo correspondente em midia/.
+3. Confira se cobriu tudo o que a ementa, a parte pedida e os detalhes pedem.
+4. Só gere e envie o .zip (ou os arquivos) depois que essa revisão estiver certa. Se encontrar algum erro, corrija antes de enviar.
 
 REGRAS DE FORMATO (o app lê o arquivo automaticamente; siga à risca)
 1. O arquivo começa com os metadados, um por linha, cada um começando com @, e o primeiro é sempre @tipo (@tipo, @id, @materia, @topico, @titulo, @tags…).
@@ -630,7 +662,7 @@ FONTES (obrigatório)
 1. Use como base SOMENTE os arquivos que estão nas fontes deste projeto: livros-texto, slides do professor, notas de aula, listas de exercícios, provas antigas e o que mais estiver lá (e, quando eu anexar exercícios a esta mensagem, eles também). Leia as fontes antes de escrever.
 2. Não traga teoria nem notação que não estejam nas fontes. Use a mesma notação, os mesmos nomes e a mesma ordem de apresentação do professor sempre que as fontes mostrarem.
 3. Se o foco ou os detalhes acima citarem uma prova, uma lista ou um material específico, priorize esse material (o estilo, o nível e os tipos de questão dele) ao montar as listas.
-4. Se faltar nas fontes algo necessário para um tópico, avise no fim da resposta em vez de inventar.
+4. O QUE ESTÁ FALTANDO: antes de começar, compare a ementa, a parte pedida e os detalhes com o que existe nas fontes. Se algo estiver faltando (um tópico da ementa sem material, uma prova, lista ou capítulo citado nos detalhes que não está nas fontes), avise logo no início da resposta, liste exatamente o que falta e peça para eu enviar o(s) arquivo(s). Se o que falta for essencial, espere eu enviar antes de gerar; se não for, gere o resto e marque com clareza o que ficou pendente. Nunca invente o conteúdo que falta.
 
 ENTREGA
 1. Gere um arquivo .zip com um arquivo .txt por lista, e as figuras e interativos dentro da pasta midia/ do zip.
@@ -687,6 +719,7 @@ COMO INSERIR
 4. Interativo, em qualquer ponto de qualquer bloco ou campo, numa linha sozinha:
 [interativo: nome-do-arquivo.html | altura em px, opcional, padrão 400 | legenda opcional]
 5. Use quantas figuras e interativos forem necessários.
+5b. ONDE PÔR A FIGURA EM CHECAGENS E EXERCÍCIOS: o marcador fica no campo em que a figura é usada. No @enunciado (ou @pergunta) só entram as figuras que fazem parte do enunciado. Uma figura que só serve de ajuda ou de explicação (por exemplo, um diagrama de corpo livre da solução) vai dentro de @dica, @formula ou @resolucao, nunca junto do enunciado, para não entregar a resposta.
 6. Nomes de arquivo em minúsculas, sem espaços nem acentos, começando pelo @id da aula ou da lista. Ex.: calc3-integrais-polares-regiao.png
 
 COMO FAZER AS FIGURAS
@@ -699,6 +732,12 @@ COMO FAZER OS INTERATIVOS
 11. Ele roda isolado dentro do app: não use localStorage, cookies, alert(), pop-ups nem requisições para fora (só os CDNs).
 12. Deve funcionar no celular: largura 100%, controles grandes e que funcionem com toque, textos em português do Brasil, fundo branco, detalhes em azul pastel.
 13. Inclua uma frase curta no topo dizendo o que mexer e o que observar.
+
+CONFERÊNCIA ANTES DE ENVIAR (obrigatório)
+1. Antes de gerar o arquivo final, revise tudo com calma (double check): refaça as contas de todos os exemplos, checagens e exercícios e confira cada resposta; confira se as explicações estão completas e corretas segundo as fontes.
+2. Confira o formato de cada arquivo: @tipo na primeira linha, metadados, blocos "== TIPO | título", nomes dos campos exatamente como no modelo, LaTeX válido, nomes de @topico e @subtopico idênticos aos da divisão, e cada marcador de figura ou interativo com o arquivo correspondente em midia/.
+3. Confira se cobriu tudo o que a ementa, a parte pedida e os detalhes pedem.
+4. Só gere e envie o .zip (ou os arquivos) depois que essa revisão estiver certa. Se encontrar algum erro, corrija antes de enviar.
 
 REGRAS DE FORMATO (o app lê o arquivo automaticamente; siga à risca)
 1. O arquivo começa com os metadados, um por linha, cada um começando com @, e o primeiro é sempre @tipo (@tipo, @id, @materia, @topico, @titulo, @tags…).
@@ -736,7 +775,7 @@ FONTES (obrigatório)
 1. Use como base SOMENTE os arquivos que estão nas fontes deste projeto: livros-texto, slides do professor, notas de aula, listas de exercícios, provas antigas e o que mais estiver lá (e, quando eu anexar exercícios a esta mensagem, eles também). Leia as fontes antes de escrever.
 2. Não traga teoria nem notação que não estejam nas fontes. Use a mesma notação, os mesmos nomes e a mesma ordem de apresentação do professor sempre que as fontes mostrarem.
 3. Se o foco ou os detalhes acima citarem uma prova, uma lista ou um material específico, priorize esse material (o estilo, o nível e os tipos de questão dele) ao montar as listas.
-4. Se faltar nas fontes algo necessário para um tópico, avise no fim da resposta em vez de inventar.
+4. O QUE ESTÁ FALTANDO: antes de começar, compare a ementa, a parte pedida e os detalhes com o que existe nas fontes. Se algo estiver faltando (um tópico da ementa sem material, uma prova, lista ou capítulo citado nos detalhes que não está nas fontes), avise logo no início da resposta, liste exatamente o que falta e peça para eu enviar o(s) arquivo(s). Se o que falta for essencial, espere eu enviar antes de gerar; se não for, gere o resto e marque com clareza o que ficou pendente. Nunca invente o conteúdo que falta.
 5. Sem ementa, a matéria é tudo o que está nas fontes: cubra todo esse conteúdo. Só exclua ou acrescente partes se o foco e as instruções pedirem.
 
 ENTREGA
@@ -794,6 +833,7 @@ COMO INSERIR
 4. Interativo, em qualquer ponto de qualquer bloco ou campo, numa linha sozinha:
 [interativo: nome-do-arquivo.html | altura em px, opcional, padrão 400 | legenda opcional]
 5. Use quantas figuras e interativos forem necessários.
+5b. ONDE PÔR A FIGURA EM CHECAGENS E EXERCÍCIOS: o marcador fica no campo em que a figura é usada. No @enunciado (ou @pergunta) só entram as figuras que fazem parte do enunciado. Uma figura que só serve de ajuda ou de explicação (por exemplo, um diagrama de corpo livre da solução) vai dentro de @dica, @formula ou @resolucao, nunca junto do enunciado, para não entregar a resposta.
 6. Nomes de arquivo em minúsculas, sem espaços nem acentos, começando pelo @id da aula ou da lista. Ex.: calc3-integrais-polares-regiao.png
 
 COMO FAZER AS FIGURAS
@@ -806,6 +846,12 @@ COMO FAZER OS INTERATIVOS
 11. Ele roda isolado dentro do app: não use localStorage, cookies, alert(), pop-ups nem requisições para fora (só os CDNs).
 12. Deve funcionar no celular: largura 100%, controles grandes e que funcionem com toque, textos em português do Brasil, fundo branco, detalhes em azul pastel.
 13. Inclua uma frase curta no topo dizendo o que mexer e o que observar.
+
+CONFERÊNCIA ANTES DE ENVIAR (obrigatório)
+1. Antes de gerar o arquivo final, revise tudo com calma (double check): refaça as contas de todos os exemplos, checagens e exercícios e confira cada resposta; confira se as explicações estão completas e corretas segundo as fontes.
+2. Confira o formato de cada arquivo: @tipo na primeira linha, metadados, blocos "== TIPO | título", nomes dos campos exatamente como no modelo, LaTeX válido, nomes de @topico e @subtopico idênticos aos da divisão, e cada marcador de figura ou interativo com o arquivo correspondente em midia/.
+3. Confira se cobriu tudo o que a ementa, a parte pedida e os detalhes pedem.
+4. Só gere e envie o .zip (ou os arquivos) depois que essa revisão estiver certa. Se encontrar algum erro, corrija antes de enviar.
 
 REGRAS DE FORMATO (o app lê o arquivo automaticamente; siga à risca)
 1. O arquivo começa com os metadados, um por linha, cada um começando com @, e o primeiro é sempre @tipo (@tipo, @id, @materia, @topico, @titulo, @tags…).

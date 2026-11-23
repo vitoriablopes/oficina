@@ -1,17 +1,19 @@
 import { CONFIG } from './config.js';
 import * as S from './store.js';
+import { lsGet, lsSet } from './store.js';
 import { Store, save, on } from './store.js';
 import * as TTS from './speech.js';
 import { $, esc, toast, modal, confirmBox, plural, dayKey, fmtDate } from './util.js';
-import { rebuild, ITEMS, itemById, materias, materiaByKey, aulaProg, aulaPct, listaStats, streak, dayRec, tagsOf, matchTags, setGroupOrder, bump, groupOf, savedList, topicsOf, matchTopic, matchQuery, itemHay, qNodes, activeMaterias, byPeriodo, setMatCfg } from './data.js';
-import { openMateriaOptions, organizeMaterias } from './matcfg.js';
-import { renderAcomp, proxima, quando } from './acomp.js';
+import { rebuild, ITEMS, itemById, materias, materiaByKey, aulaProg, aulaPct, listaStats, streak, dayRec, tagsOf, matchTags, setGroupOrder, bump, groupOf, savedList, topicsOf, matchTopic, matchQuery, itemHay, qNodes, activeMaterias, byPeriodo, setMatCfg, setStudyMat, tempoMateria, fmtTempo } from './data.js';
+import { initFocus, refreshFocus } from './focus.js';
+import { openMateriaOptions, organizeMaterias, newMateria } from './matcfg.js';
+import { renderAcomp, proxima, quando, planHtml } from './acomp.js';
 import { BLOCK_TYPES, nodesText } from './parser.js';
 const nodesTextOf = (b) => nodesText(b.enunciado || b.pergunta);
 import { openAula, teardown, wireSay, blockHeader, blockBody, answerArea, wireAnswer, wireStar, topicLine } from './aula.js';
 import { openLista } from './lista.js';
 import { renderStudio } from './studio.js';
-import { renderBanco, openPratica, srcLine } from './banco.js';
+import { renderBanco, openPratica, srcLine, revisarCard, wireRevisar } from './banco.js';
 import { richHtml, hydrate, inl, speechOf } from './render.js';
 import { sortable } from './sortable.js';
 
@@ -62,6 +64,8 @@ function route(keepScroll) {
   document.body.classList.toggle('focus', ['aula', 'lista', 'pratica'].includes(name));
   shell();
   const v = view();
+  setStudyMat(['aula', 'lista', 'essencial', 'passos'].includes(name) ? itemById(arg)?.mkey : null);
+  setTimeout(refreshFocus, 0);
   if (name === 'aula') { openAula(v, arg, { go }); return; }
   if (name === 'lista') { openLista(v, arg, { go }); return; }
   if (name === 'pratica') { openPratica(v, { go }); return; }
@@ -92,18 +96,19 @@ function matCard(m) {
   const s = matStats(m);
   const next = m.aulas.find((a) => aulaProg(a.id)?.status !== 'concluida');
   return `<a class="card mat-card" href="#materia/${esc(m.key)}">
-    <div class="row nowrap between"><div><div class="mat-name">${esc(m.nome)}</div>${m.cfg?.periodo || m.cfg?.arquivada ? `<div class="row" style="gap:6px;margin-top:4px">${m.cfg.periodo ? `<span class="per-chip">${esc(m.cfg.periodo)}</span>` : ''}${m.cfg.arquivada ? '<span class="per-chip arq">arquivada</span>' : ''}</div>` : ''}</div><div class="mini-ring" style="--p:${s.pct}"><span>${s.pct}%</span></div></div>
+    <div class="row nowrap between"><div><div class="mat-name">${esc(m.nome)}</div>${m.cfg?.periodo || m.cfg?.arquivada || m.cfg?.codigo ? `<div class="row" style="gap:6px;margin-top:4px">${m.cfg.codigo ? `<span class="per-chip cod">${esc(m.cfg.codigo)}</span>` : ''}${m.cfg.periodo ? `<span class="per-chip">${esc(m.cfg.periodo)}</span>` : ''}${m.cfg.arquivada ? '<span class="per-chip arq">arquivada</span>' : ''}</div>` : ''}</div><div class="mini-ring" style="--p:${s.pct}"><span>${s.pct}%</span></div></div>
     <div class="small muted">${s.aDone}/${m.aulas.length} aulas · ${s.lDone}/${m.listas.length} listas</div>
-    ${next ? `<div class="small mat-next">Próxima: <i>${inl(next.titulo)}</i></div>` : m.aulas.length ? '<div class="small mat-next">Todas as aulas concluídas ✦</div>' : ''}
+    ${next ? `<div class="small mat-next">Próxima: <i>${inl(next.titulo)}</i></div>` : m.aulas.length ? '<div class="small mat-next">Todas as aulas concluídas ✦</div>' : !m.listas.length && !m.essenciais.length && !m.passos.length ? '<div class="small mat-next">Vazia — gere o conteúdo no Estúdio › Prompts para IA</div>' : ''}
     ${(() => { const av = proxima(m.key); return av ? `<div class="small mat-av">📅 ${esc(av.nome || 'Avaliação')} ${quando(av.data)}</div>` : ''; })()}
   </a>`;
 }
 function emptyState() {
   return `<div class="card empty stack"><span class="orn">✦</span><div>Ainda não há aulas nem listas.</div>
-    <div class="row" style="justify-content:center"><button class="btn primary" data-goto="estudio">Importar aulas</button><button class="btn" data-example>Ver um exemplo</button></div></div>`;
+    <div class="row" style="justify-content:center"><button class="btn primary" data-newm2>+ Nova matéria</button><button class="btn" data-goto="estudio">Importar aulas</button><button class="btn" data-example>Ver um exemplo</button></div></div>`;
 }
 function wireExample(v) {
   v.querySelector('[data-example]')?.addEventListener('click', () => go('#estudio', { tab: 'importar', exemplo: true }));
+  v.querySelector('[data-newm2]')?.addEventListener('click', () => newMateria((k) => { rebuild(); go('#materia/' + k); }));
 }
 function renderHome(v) {
   const p = Store.state.perfil;
@@ -119,11 +124,15 @@ function renderHome(v) {
   const lvl = (k) => { const r = D[k]; if (!r) return 0; const m = r.min + r.itens * 2; return m <= 0 ? 0 : m < goal * 0.34 ? 1 : m < goal * 0.67 ? 2 : m < goal ? 3 : 4; };
   const todayK = dayKey();
   const sk = streak();
+  setTimeout(() => wireRevisar(v, go), 0);
   v.innerHTML = `<div class="wrap fade-in stack-l">
     <div class="hello page-head" style="margin-bottom:0"><div class="kicker">${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
       <h1>${hello()}${p.nome ? `, <em>${esc(p.nome)}</em>` : ''}.</h1><p>Um passo de cada vez. Abra uma aula e comece pela primeira parte.</p></div>
     ${Store.configured && !Store.user ? `<div class="banner"><span style="font-size:1.4rem">☁</span><div class="grow">Entre na sua conta para sincronizar entre celular e computador.</div><button class="btn sm" data-goto="ajustes">Entrar</button></div>` : ''}
     ${!mats.length ? emptyState() : ''}
+    ${mats.length ? revisarCard() : ''}
+    ${(() => { const blocks = mats.map((m) => { const av = proxima(m.key); if (!av) return ''; const h = planHtml(m, av, { compact: true }); return h ? `<div class="hoje-mat"><div class="small"><b>${esc(m.nome)}</b> · ${esc(av.nome || 'avaliação')} ${quando(av.data)}</div>${h}</div>` : ''; }).filter(Boolean);
+      return blocks.length ? `<div class="card stack-s hoje-plano"><div class="caps muted">Hoje no plano</div>${blocks.join('')}</div>` : ''; })()}
     ${last ? `<a class="card hero-lesson" href="#${last.tipo}/${esc(last.id)}">
       <div class="grow"><div class="caps">Continuar · ${esc(last.materia)}</div><div class="h">${inl(last.titulo)}</div>
       <div class="progress" style="margin-top:12px;background:rgba(255,255,255,.55)"><i style="width:${lastPct}%"></i></div></div>
@@ -153,15 +162,16 @@ function renderMaterias(v) {
   const nArq = all.length - mats.length;
   v.innerHTML = `<div class="wrap fade-in"><div class="page-head"><div class="kicker">Matérias</div><h1>Sua <em class="it">oficina</em></h1>
     <p>As matérias em andamento. As arquivadas ficam em “Mais matérias”.</p></div>
-    ${all.length ? `<div class="row nowrap" style="margin-bottom:16px"><input class="input search grow" type="search" data-q placeholder="Pesquisar matérias, aulas e listas…" value="${esc(MQ)}">${mats.length > 1 ? '<button class="btn sm" data-org>↕ Organizar</button>' : ''}</div>
+    ${all.length ? `<div class="row nowrap" style="margin-bottom:16px"><input class="input search grow" type="search" data-q placeholder="Pesquisar matérias, aulas e listas…" value="${esc(MQ)}">${mats.length > 1 ? '<button class="btn sm" data-org>↕ Organizar</button>' : ''}<button class="btn sm" data-newm>+ Nova</button></div>
       <div data-res></div>
       <a class="card saved-link row nowrap" href="#materias/todas" style="margin-top:18px"><span class="star-big" style="color:var(--accent)">❦</span><div class="grow"><b>Mais matérias</b><div class="small muted">Todas as matérias, separadas por período${nArq ? ` · ${plural(nArq, 'arquivada', 'arquivadas')}` : ''}</div></div><span class="muted">→</span></a>` : emptyState()}</div>`;
   wireExample(v);
   v.querySelector('[data-org]')?.addEventListener('click', () => organizeMaterias(() => renderMaterias(v)));
+  v.querySelector('[data-newm]')?.addEventListener('click', () => newMateria((k) => { rebuild(); go('#materia/' + k); }));
   const res = v.querySelector('[data-res]'); if (!res) return;
   const draw = () => {
     if (!MQ.trim()) { res.innerHTML = mats.length ? groupedCards(mats) : '<div class="card empty">Todas as matérias estão arquivadas. Veja em “Mais matérias”.</div>'; return; }
-    const ms = all.filter((m) => matchQuery(m.nome + ' ' + (m.cfg.periodo || ''), MQ));
+    const ms = all.filter((m) => matchQuery([m.nome, m.cfg.periodo, m.cfg.codigo, m.cfg.professor].join(' '), MQ));
     const its = ITEMS.filter((it) => matchQuery(itemHay(it), MQ));
     const KIND = { aula: 'Aula', lista: 'Lista', essencial: 'Essenciais', passos: 'Passo a passo' };
     res.innerHTML = `${ms.length ? `<div class="grid g2" style="margin-bottom:16px">${ms.map(matCard).join('')}</div>` : ''}
@@ -247,16 +257,17 @@ function renderMateria(v, key, params = {}) {
   const m = materiaByKey(key);
   if (!m) { v.innerHTML = `<div class="empty"><span class="orn">❦</span>Matéria não encontrada.<div style="margin-top:14px"><a class="btn" href="#materias">Voltar</a></div></div>`; return; }
   const p = Store.state.perfil;
-  const aba = params.aba || p.aba?.[key] || (m.aulas.length ? 'aulas' : 'listas');
+  const aba = params.aba || p.aba?.[key] || (m.aulas.length || !m.listas.length ? 'aulas' : 'listas');
   if (p.aba?.[key] !== aba) { p.aba = { ...(p.aba || {}), [key]: aba }; save('perfil'); }
+  setStudyMat(aba === 'acomp' ? null : key); setTimeout(refreshFocus, 0);
   const f = (MF[key] ||= { tags: [] });
   const all = [...m.aulas, ...m.listas];
   const tags = tagsOf(all);
   f.tags = f.tags.filter((t) => tags.includes(t));
   const s = matStats(m);
   v.innerHTML = `<div class="narrow fade-in"><div class="page-head"><div class="kicker"><a href="#materias" style="color:inherit">Matérias</a> ›</div>
-      <div class="row nowrap between" style="align-items:flex-start"><h1>${esc(m.nome)}</h1><button class="btn sm" data-mopt title="Período, arquivar, clonar">⋯ Opções</button></div>
-      <p>${m.cfg.periodo ? `<span class="per-chip">${esc(m.cfg.periodo)}</span> ` : ''}${m.cfg.arquivada ? '<span class="per-chip arq">arquivada</span> ' : ''}${s.aDone}/${m.aulas.length} aulas · ${s.lDone}/${m.listas.length} listas</p></div>
+      <div class="row nowrap between" style="align-items:flex-start"><h1>${esc(m.nome)}</h1><button class="btn sm" data-mopt title="Editar, período, arquivar, clonar, excluir">✎ Editar</button></div>
+      <p>${m.cfg.codigo ? `<span class="per-chip cod">${esc(m.cfg.codigo)}</span> ` : ''}${m.cfg.periodo ? `<span class="per-chip">${esc(m.cfg.periodo)}</span> ` : ''}${m.cfg.professor ? `<span class="small muted">${esc(m.cfg.professor)} · </span>` : ''}${m.cfg.arquivada ? '<span class="per-chip arq">arquivada</span> ' : ''}${s.aDone}/${m.aulas.length} aulas · ${s.lDone}/${m.listas.length} listas</p></div>
     <div class="row between" style="margin-bottom:14px">
       <div class="seg big" data-aba>${[['aulas', 'Aulas'], ['essenciais', 'Essenciais'], ['passos', 'Passo a passo'], ['listas', 'Listas'], ['formulas', 'Fórmulas'], ['salvos', '★ Salvos'], ['acomp', 'Acompanhar']].map(([k, l]) => `<button data-v="${k}" class="${aba === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       ${['aulas', 'listas', 'essenciais'].includes(aba) && Store.isAdmin && ({ aulas: m.aulas, listas: m.listas, essenciais: m.essenciais }[aba]).length > 1 ? `<button class="btn sm" data-reorder>↕ Reordenar</button>` : aba === 'formulas' ? `<button class="btn sm" data-print>Imprimir</button>` : ''}
@@ -292,7 +303,11 @@ function renderTrilha(el, m, f) {
   const ok = (a) => matchTags(a, f.tags) && matchQuery(itemHay(a), f.q);
   let lastTopic = null;
   const shown = list.filter(ok);
-  if (!list.length) { el.innerHTML = `<div class="card empty">Nenhuma aula nesta matéria ainda.<div style="margin-top:12px"><button class="btn sm" data-goto="estudio">Importar aulas</button></div></div>`; return; }
+  if (!list.length) {
+    el.innerHTML = `<div class="card empty">Nenhuma aula nesta matéria ainda.<div class="row" style="margin-top:12px;justify-content:center"><button class="btn sm primary" data-genia>Gerar com IA</button><button class="btn sm" data-goto="estudio">Importar</button></div></div>`;
+    el.querySelector('[data-genia]').onclick = () => { lsSet('promptCampos', { ...lsGet('promptCampos', {}), mkey: m.key }); go('#estudio', { tab: 'prompts' }); };
+    return;
+  }
   el.innerHTML = `${!shown.length ? '<div class="card empty">Nenhuma aula com esse filtro.</div>' : ''}
     <div class="trail">${list.map((a, i) => {
       if (!ok(a)) return '';
@@ -423,6 +438,20 @@ function renderPassos(el, m, f) {
   if (list.length === 1) el.querySelector('[data-pp]').open = true;
 }
 
+/** Um bloco FORMULA com várias fórmulas ("### nome") vira um cartão por fórmula. */
+function splitFormula(b) {
+  const segs = [];
+  let cur = null;
+  for (const n of b.nodes) {
+    if (n.k === 'h') { cur = { title: n.text, nodes: [] }; segs.push(cur); continue; }
+    if (!cur) { cur = { title: '', nodes: [] }; segs.push(cur); }
+    cur.nodes.push(n);
+  }
+  if (!segs.length) segs.push({ title: b.title, nodes: b.nodes });
+  const L = b.leituras || [];
+  segs.forEach((sg, i) => { sg.leitura = segs.length === 1 ? b.leitura : L[i] || ''; });
+  return segs.filter((sg) => sg.nodes.length || sg.title);
+}
 function renderFormulas(el, m, f) {
   const allF = m.aulas.flatMap((a) => a.parsed.formulas);
   const T = topicsOf(allF);
@@ -434,15 +463,16 @@ function renderFormulas(el, m, f) {
   if (!aulas.length) { el.innerHTML = sel + `<div class="card empty">${allF.length ? 'Nenhuma fórmula com esse filtro.' : 'Nenhuma fórmula ainda. Cada bloco "== FORMULA" das aulas entra aqui sozinho.'}</div>`; wireFt(); return; }
   el.innerHTML = `${sel}<div class="folha"><div class="print-only"><h1>${esc(m.nome)} · folha de fórmulas</h1></div>${aulas.map((a) => `<section class="folha-sec">
     <div class="folha-h"><a href="#aula/${esc(a.id)}">${inl(a.titulo)}</a></div>
-    ${a.parsed.formulas.map((b, k) => (fOk(a, b) ? `<div class="card formula-card" data-fk="${esc(a.id)}|${k}">
-      <div class="row nowrap between"><div class="fname">${inl(b.title || 'Fórmula')}</div><button class="icon-btn sm no-print" data-say title="Ouvir">🔊</button></div>
-      ${topicLine(b)}${richHtml(b.nodes)}</div>` : '')).join('')}</section>`).join('')}</div>`;
+    ${a.parsed.formulas.map((b, k) => (fOk(a, b) ? splitFormula(b).map((sg, j) => `<div class="card formula-card" data-fk="${esc(a.id)}|${k}|${j}">
+      <div class="row nowrap between"><div class="fname">${inl(sg.title || b.title || 'Fórmula')}</div><button class="icon-btn sm no-print" data-say title="Ouvir">🔊</button></div>
+      ${j === 0 ? topicLine(b) : ''}${richHtml(sg.nodes)}</div>`).join('') : '')).join('')}</section>`).join('')}</div>`;
   wireFt();
   function wireFt() { el.querySelector('[data-ftopic]')?.addEventListener('change', (e) => { f.ftopic = e.target.value; renderFormulas(el, m, f); }); }
   el.querySelectorAll('[data-fk]').forEach((c) => {
-    const [id, k] = c.dataset.fk.split('|');
+    const [id, k, j] = c.dataset.fk.split('|');
     const b = itemById(id).parsed.formulas[+k];
-    wireSay(c.querySelector('[data-say]'), () => `${b.title}. ${b.leitura || speechOf(b.nodes)}`);
+    const sg = splitFormula(b)[+j];
+    wireSay(c.querySelector('[data-say]'), () => `${sg.title || b.title}. ${sg.leitura || speechOf(sg.nodes)}`);
   });
   hydrate(el);
 }
@@ -554,7 +584,7 @@ async function boot() {
   window.addEventListener('hashchange', () => route());
   document.addEventListener('pointerdown', bump, { passive: true });
   await S.init();
-  rebuild(); applyPrefs(); route();
+  rebuild(); applyPrefs(); route(); initFocus();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 boot();

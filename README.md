@@ -9,6 +9,11 @@ O ateliê das matérias da faculdade. Cada matéria tem:
 - **Banco de exercícios** (menu Listas): junta os exercícios de todas as listas e as checagens de todas as aulas. Pesquise por tópico, subtópico, descrição ou enunciado, filtre por matéria, origem (lista ou aula) e situação (nunca feitos, já errei, acertados, salvos), marque os que quiser e pratique só esses. Os acertos e erros voltam para a lista ou aula de origem.
 - **Exercícios salvos**: a estrelinha ☆ guarda exercícios e checagens para consultar depois, sempre dizendo de qual aula ou lista vieram (menu Listas › Salvos, ou a aba Salvos da matéria).
 - **Acompanhar** (aba de cada matéria): uma tabelinha das avaliações em formato de calendário (data, nome, peso, nota ou previsão), a **nota final**, a **previsão** (com as notas que você acha que vai tirar) e a **nota que precisa tirar** nas que faltam. Toque numa avaliação para editar. Em *Configurar o cálculo* você escolhe a média para passar e entre **média ponderada** ou **condições com nome** (ex.: “Média parcial” = P1 + P2, vale se ≥ 7; “Com prova final” = P1 + P2 + PF×2, vale se a média parcial for < 7; há um botão com esse modelo pronto). Avaliações podem ficar fora da nota necessária, usando a previsão. Embaixo, um bloco grande de anotações livres.
+- **Revisar hoje** (Início): os exercícios e checagens que você errou e ainda não acertou (botão para refazer na hora) e o passo a passo ainda não aprendido, com os favoritos primeiro.
+- **Tempo de estudo e timer de foco**: o app conta sozinho o tempo em cada matéria enquanto você está nas telas de estudo dela (aulas, listas, banco, essenciais, passo a passo e fórmulas). A pílula ⏱ no canto mostra o tempo de hoje e abre o timer de foco (25 ou 50 min, com pausa de 5). Na aba Acompanhar aparecem hoje, 7 dias, total e um gráfico de 14 dias.
+- **Plano até a prova** (aba Acompanhar): em cada avaliação você marca **o que cai** (os tópicos da matéria). O app distribui as aulas e listas pendentes desses tópicos pelos dias até a prova e reserva o último dia para revisar os essenciais e o passo a passo ainda não aprendido. Sem tópicos marcados, usa as aulas com a tag de mesmo nome da avaliação (ex.: `p1`). O plano se refaz sozinho conforme você estuda, e o **Início** mostra o que está no plano para hoje.
+- **Editar e excluir matérias** (✎ Editar, no topo da matéria): nome, sigla usada nos ids, código da disciplina, professor(a), período, arquivar, clonar e excluir. Trocar o nome atualiza todas as aulas e listas e mantém o progresso.
+- **Nova matéria**: crie uma matéria vazia (Matérias › + Nova, ou no Estúdio › Prompts) e escolha-a na lista ao gerar os prompts; a ementa e a divisão ficam salvas em cada matéria.
 - **Períodos e arquivo**: cada matéria pode ter período (26.1, 26.2, 26.3…), ser reordenada (Matérias › Organizar) e ser arquivada. A tela de Matérias mostra só as não arquivadas, separadas por período; as arquivadas ficam em **Mais matérias**.
 - **Clonar matéria** (⋯ Opções na matéria): cria uma cópia com outro nome e período, **tudo limpo** (progresso do zero) ou **com todos os dados**, e pode arquivar a original. Útil para refazer uma matéria sem perder nada.
 - **Busca em tudo**: matérias, trilha, mapa de listas, folha de fórmulas, salvos, banco e Estúdio têm campo de pesquisa.
@@ -30,7 +35,10 @@ Funciona no celular e no computador, pode ser **instalado como app** e funciona 
 
 Já funciona, salvando tudo **no aparelho**. Para sincronizar, faça a parte 2.
 
-## 2. Sincronização com Firebase (opcional)
+## 2. Sincronização com Firebase
+
+> O `js/config.js` deste zip já vem com o projeto do Firebase do Atelier e o seu e-mail. Falta só acrescentar as regras `oficina_…` no Firestore (passo 4) e entrar em Ajustes.
+
 
 Pode usar **o mesmo projeto do Atelier**: a Oficina guarda tudo em coleções separadas (`oficina_itens`, `oficina_midia`, `oficina_config`), então não mistura nada.
 

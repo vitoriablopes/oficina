@@ -1,7 +1,8 @@
 // Estúdio: colar uma aula/lista, importar vários arquivos, gerenciar, prompts e modelo.
 import { parseItem, BLOCK_TYPES, mediaKey } from './parser.js';
 import { Store, deleteItem, getMedia, putMedia, lsGet, lsSet } from './store.js';
-import { ITEMS, rebuild, materias, itemById, matchQuery, itemHay } from './data.js';
+import { ITEMS, rebuild, materias, activeMaterias, itemById, matchQuery, itemHay, siglaOf, setMatCfg } from './data.js';
+import { newMateria, openMateriaOptions } from './matcfg.js';
 import { esc, plural, toast, copyText, confirmBox } from './util.js';
 import { hydrate, inl, richHtml } from './render.js';
 import { blockHeader, blockBody, answerArea, wireAnswer } from './aula.js';
@@ -165,7 +166,7 @@ async function panelItens(el, { go, v }) {
     const m = mats.find((x) => x.key === b.dataset.delm);
     const n = m.aulas.length + m.listas.length + m.essenciais.length + m.passos.length;
     if (await confirmBox(`Apagar a matéria “${esc(m.nome)}” inteira (${plural(n, 'item', 'itens')})? Se quiser guardar, exporte antes.`, { ok: 'Apagar tudo', danger: true })) {
-      for (const it of [...m.aulas, ...m.listas, ...m.essenciais, ...m.passos]) await deleteItem(it.id);
+      const { deleteMateria } = await import('./matcfg.js'); await deleteMateria(m);
       toast('Matéria apagada'); panelItens(el, { go, v });
     }
   }));
@@ -191,22 +192,29 @@ async function panelItens(el, { go, v }) {
 
 // ---------------------------------------------------------------
 function panelPrompts(el) {
-  const f = { materia: '', sigla: '', ementa: '', topicos: '', parteA: '', focoA: '', topicosL: '', detalhesL: '', modoL: 'descricao', incA: true, incE: true, incP: true, incL: false, detA: '', detE: '', detP: '', detL: '', parteP: '', detalhesP: '', ...lsGet('promptCampos', {}) };
+  const f = { mkey: '', parteA: '', focoA: '', topicosL: '', detalhesL: '', modoL: 'descricao', incA: true, incE: true, incP: true, incL: false, detA: '', detE: '', detP: '', detL: '', parteP: '', detalhesP: '', ...lsGet('promptCampos', {}) };
   if (!MODOS_LISTA[f.modoL]) f.modoL = 'descricao';
   const mats = materias();
+  if (!mats.some((x) => x.key === f.mkey)) f.mkey = (activeMaterias()[0] || mats[0])?.key || '';
+  const m = mats.find((x) => x.key === f.mkey);
+  const mc = m ? m.cfg : {};
+  // ementa e divisão ficam guardadas em cada matéria
+  f.materia = m?.nome || ''; f.sigla = m ? siglaOf(m) : ''; f.ementa = mc.ementa || ''; f.topicos = mc.divisao || '';
   const ta = (k, label, ph, h = 90, hint = '') => `<div><label class="lbl">${label}</label><textarea class="textarea" data-f="${k}" style="min-height:${h}px" placeholder="${ph}">${esc(f[k] || '')}</textarea>${hint ? `<p class="tiny muted" style="margin:4px 0 0">${hint}</p>` : ''}</div>`;
+  const opt = (x) => `<option value="${esc(x.key)}" ${x.key === f.mkey ? 'selected' : ''}>${esc(x.nome)}${x.cfg.codigo ? ' · ' + esc(x.cfg.codigo) : ''}${x.cfg.periodo ? ' · ' + esc(x.cfg.periodo) : ''}</option>`;
+  const act = mats.filter((x) => !x.cfg.arquivada), arq = mats.filter((x) => x.cfg.arquivada);
   el.innerHTML = `<div class="stack">
     <div class="card soft small stack-s">
       <div><b>Como usar:</b> crie um projeto no ChatGPT (ou no Claude) para a matéria e ponha nas <b>fontes do projeto</b> tudo o que deve ser considerado: livros-texto, slides do professor, notas de aula, listas de exercícios e provas.</div>
-      <div>Depois preencha aqui, copie o prompt e mande dentro desse projeto. O prompt manda a IA usar <b>só</b> o que está nas fontes. A resposta (zip ou texto) entra pelo “Importar vários” ou pelo “Colar uma”.</div>
+      <div>Depois escolha a matéria aqui, copie o prompt e mande dentro desse projeto. O prompt manda a IA usar <b>só</b> o que está nas fontes. A resposta (zip ou texto) entra pelo “Importar vários” ou pelo “Colar uma”.</div>
     </div>
     <div class="card stack-s"><h3>A matéria</h3>
-      <div class="grid g2">
-        <div><label class="lbl">Matéria</label><input class="input" data-f="materia" list="mats" value="${esc(f.materia)}" placeholder="ex.: Mecânica dos Sólidos 1"><datalist id="mats">${mats.map((m) => `<option value="${esc(m.nome)}">`).join('')}</datalist></div>
-        <div><label class="lbl">Sigla curta (para os ids e arquivos)</label><input class="input" data-f="sigla" value="${esc(f.sigla)}" placeholder="ex.: mecsol1"></div>
-      </div>
-      ${ta('ementa', 'Ementa (opcional)', 'Cole aqui a ementa da matéria', 110, 'Sem ementa, a IA usa todo o material das fontes do projeto e cobre a matéria inteira, a não ser que o foco diga para excluir ou acrescentar algo.')}
-      ${ta('topicos', 'Divisão da matéria (tópicos e subtópicos)', '1. Tensão (P1)&#10;   1.1 Tensão normal&#10;   1.2 Tensão de cisalhamento&#10;2. Deformação (P1)…', 110, 'Opcional. Vazio = a IA monta a divisão a partir da ementa e das fontes. Os nomes daqui viram os tópicos e subtópicos usados nos filtros do app.')}
+      <div><label class="lbl">Matéria</label><div class="row nowrap">
+        <select class="select grow" data-mat>${!mats.length ? '<option value="">Nenhuma matéria ainda</option>' : ''}${act.map(opt).join('')}${arq.length ? `<optgroup label="Arquivadas">${arq.map(opt).join('')}</optgroup>` : ''}</select>
+        <button class="btn sm" data-newmat>+ Nova matéria</button></div></div>
+      ${m ? `<p class="tiny muted" style="margin:0">Nos arquivos: <b>@materia: ${esc(m.nome)}</b> · sigla dos ids <b>${esc(f.sigla)}</b> <button class="btn xs ghost" data-editmat>editar matéria</button></p>
+      ${ta('ementa', 'Ementa (opcional)', 'Cole aqui a ementa da matéria', 110, 'Fica salva nesta matéria. Sem ementa, a IA usa todo o material das fontes do projeto e cobre a matéria inteira, a não ser que o foco diga para excluir ou acrescentar algo.')}
+      ${ta('topicos', 'Divisão da matéria (tópicos e subtópicos)', '1. Tensão (P1)&#10;   1.1 Tensão normal&#10;   1.2 Tensão de cisalhamento&#10;2. Deformação (P1)…', 110, 'Fica salva nesta matéria. Opcional: vazio = a IA monta a divisão a partir da ementa e das fontes. Os nomes daqui viram os tópicos e subtópicos usados nos filtros do app.')}` : '<p class="small muted" style="margin:0">Crie a matéria primeiro em “+ Nova matéria”.</p>'}
     </div>
     <div class="card stack-s"><h3>Pacote da matéria (zip)</h3>
       <p class="small muted" style="margin:0">Um prompt só, que gera um zip com tudo o que você marcar. Cada arquivo já sai dizendo o que é (aula, essenciais, passo a passo ou lista), e o app põe cada um no lugar certo ao importar. Cada parte marcada tem o seu campo de detalhes.</p>
@@ -234,10 +242,18 @@ function panelPrompts(el) {
     ? promptPacote({ materia: f.materia, sigla: f.sigla, topicos: f.topicos, ementa: f.ementa, parte: f.parteA, foco: f.focoA, incluir: { aulas: f.incA, essenciais: f.incE, passos: f.incP, listas: f.incL }, detalhes: { aulas: f.detA, essenciais: f.detE, passos: f.detP, listas: f.detL } })
     : k === 'passos' ? promptPassos({ materia: f.materia, sigla: f.sigla, topicos: f.topicos, ementa: f.ementa, parte: f.parteP, detalhes: f.detalhesP })
     : promptListas({ materia: f.materia, sigla: f.sigla, divisao: f.topicos, ementa: f.ementa, topicos: f.topicosL, detalhes: f.detalhesL, modo: f.modoL }));
-  const refresh = () => { lsSet('promptCampos', f); el.querySelectorAll('[data-pre]').forEach((p) => { if (!p.hidden) p.textContent = gen(p.dataset.pre); }); };
-  el.querySelectorAll('[data-f]').forEach((i) => (i.oninput = () => { f[i.dataset.f] = i.value; refresh(); }));
-  el.querySelectorAll('[data-inc]').forEach((c) => (c.onchange = () => { f[c.dataset.inc] = c.checked; lsSet('promptCampos', f); panelPrompts(el); }));
-  el.querySelectorAll('input[name=modoL]').forEach((r) => (r.onchange = () => { f.modoL = r.value; lsSet('promptCampos', f); panelPrompts(el); }));
+  const local = () => { const { materia, sigla, ementa, topicos, ...rest } = f; return rest; };
+  const refresh = () => { lsSet('promptCampos', local()); el.querySelectorAll('[data-pre]').forEach((p) => { if (!p.hidden) p.textContent = gen(p.dataset.pre); }); };
+  let ct;
+  el.querySelectorAll('[data-f]').forEach((i) => (i.oninput = () => {
+    f[i.dataset.f] = i.value; refresh();
+    if (m && (i.dataset.f === 'ementa' || i.dataset.f === 'topicos')) { clearTimeout(ct); ct = setTimeout(() => setMatCfg(m.key, { ementa: f.ementa, divisao: f.topicos }), 600); }
+  }));
+  el.querySelector('[data-mat]').onchange = (e) => { f.mkey = e.target.value; lsSet('promptCampos', local()); panelPrompts(el); };
+  el.querySelector('[data-newmat]').onclick = () => newMateria((k) => { f.mkey = k; lsSet('promptCampos', local()); rebuild(); panelPrompts(el); });
+  el.querySelector('[data-editmat]')?.addEventListener('click', () => openMateriaOptions(m, { after: () => { rebuild(); panelPrompts(el); } }));
+  el.querySelectorAll('[data-inc]').forEach((c) => (c.onchange = () => { f[c.dataset.inc] = c.checked; lsSet('promptCampos', local()); panelPrompts(el); }));
+  el.querySelectorAll('input[name=modoL]').forEach((r) => (r.onchange = () => { f.modoL = r.value; lsSet('promptCampos', local()); panelPrompts(el); }));
   el.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = () => copyText(gen(b.dataset.copy))));
   el.querySelectorAll('[data-show]').forEach((b) => (b.onclick = () => { const p = el.querySelector(`[data-pre="${b.dataset.show}"]`); p.hidden = !p.hidden; p.textContent = gen(b.dataset.show); }));
 }
