@@ -3,8 +3,9 @@ import * as S from './store.js';
 import { lsGet, lsSet } from './store.js';
 import { Store, save, on } from './store.js';
 import * as TTS from './speech.js';
-import { $, esc, toast, modal, confirmBox, plural, dayKey, fmtDate } from './util.js';
-import { rebuild, ITEMS, itemById, materias, materiaByKey, aulaProg, aulaPct, listaStats, streak, dayRec, tagsOf, matchTags, setGroupOrder, bump, groupOf, savedList, topicsOf, matchTopic, matchQuery, itemHay, qNodes, activeMaterias, byPeriodo, setMatCfg, setStudyMat, tempoMateria, fmtTempo } from './data.js';
+import { $, esc, toast, modal, confirmBox, plural, dayKey, fmtDate, filtToggle, filtBody, wireFilt, setFiltCount } from './util.js';
+import { copyContext, itemTagsRow, wireItemTags } from './tags.js';
+import { rebuild, ITEMS, itemById, materias, materiaByKey, aulaProg, aulaPct, listaStats, streak, dayRec, tagsOf, matchTags, setGroupOrder, bump, groupOf, savedList, exTags, saveKey, topicsOf, matchTopic, matchQuery, itemHay, qNodes, activeMaterias, byPeriodo, setMatCfg, setStudyMat, tempoMateria, fmtTempo } from './data.js';
 import { initFocus, refreshFocus } from './focus.js';
 import { openMateriaOptions, organizeMaterias, newMateria } from './matcfg.js';
 import { renderAcomp, proxima, quando, planHtml } from './acomp.js';
@@ -27,15 +28,21 @@ function applyPrefs() {
   const p = Store.state.perfil;
   document.documentElement.dataset.fonte = p.fonte || 'm';
   document.documentElement.dataset.tema = p.tema || 'claro';
+  document.documentElement.dataset.vista = p.vista === 'compacta' ? 'compacta' : 'normal';
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', p.tema === 'noite' ? '#1f2633' : '#eef5fc');
   TTS.setPrefs({ voices: p.voz ? { pt: p.voz } : {}, speed: p.vel || 'normal' });
 }
 
+const compacta = () => Store.state.perfil.vista === 'compacta';
+function toggleVista() {
+  const p = Store.state.perfil; p.vista = compacta() ? 'normal' : 'compacta'; save('perfil'); applyPrefs(); shell(); if (!['aula', 'lista', 'pratica'].includes(routeName)) route(true);
+  toast(compacta() ? 'Visão compacta' : 'Visão normal');
+}
 function shell() {
   $('#side').innerHTML = `<div class="brand"><div class="name">${esc(CONFIG.nome)}</div><div class="sub">✦ ✦ ✦</div></div>
     ${NAV.map(([k, l, ic]) => `<a class="nav-link ${current === k ? 'on' : ''}" href="#${k}"><span class="ic">${ic}</span>${l}</a>`).join('')}
-    <div class="spacer"></div><div class="sync">${syncLabel()}</div>`;
-  $('#topbar').innerHTML = `<div class="name">${esc(CONFIG.nome)}</div><div class="row"><span class="small muted">${syncShort()}</span></div>`;
+    <div class="spacer"></div><button class="nav-link vista-tog" data-vistatog title="Trocar entre a visão normal e a compacta"><span class="ic">${compacta() ? '▢' : '▤'}</span>${compacta() ? 'Visão normal' : 'Visão compacta'}</button><div class="sync">${syncLabel()}</div>`;
+  $('#topbar').innerHTML = `<div class="name">${esc(CONFIG.nome)}</div><div class="row nowrap"><span class="small muted">${syncShort()}</span><button class="icon-btn sm" data-vistatog title="${compacta() ? 'Visão normal' : 'Visão compacta'}" aria-label="Trocar visão">${compacta() ? '▢' : '▤'}</button></div>`;
   $('#tabbar').innerHTML = NAV.map(([k, l, ic]) => `<button data-tab="${k}" class="${current === k ? 'on' : ''}"><span class="ic">${ic}</span>${l}</button>`).join('');
 }
 function syncLabel() {
@@ -47,6 +54,7 @@ const syncShort = () => (Store.configured && Store.user ? `<span class="dot ${St
 
 document.addEventListener('click', (e) => {
   const g = e.target.closest('[data-goto]'); if (g) { go('#' + g.dataset.goto); return; }
+  if (e.target.closest('[data-vistatog]')) { toggleVista(); return; }
   const a = e.target.closest('a.nav-link'); if (a && a.getAttribute('href') === location.hash) { e.preventDefault(); route(); return; }
   const t = e.target.closest('#tabbar [data-tab]'); if (t) go('#' + t.dataset.tab);
 });
@@ -196,25 +204,30 @@ function renderTodas(v) {
 // ---------------------------------------------------------------
 //  Exercícios salvos
 // ---------------------------------------------------------------
-const SF = { topico: '', q: '', org: '' };
+const SF = { topico: '', q: '', org: '', tag: '' };
 const topicOfSaved = (x) => x.b.topico || (x.b.type === 'checagem' ? x.it.titulo : 'Sem tópico');
 function renderSalvos(el, mkey) {
   const all = savedList(mkey);
   if (!all.length) { el.innerHTML = `<div class="card empty">Nenhum exercício salvo${mkey ? ' nesta matéria' : ''} ainda.<div class="small" style="margin-top:8px">Toque na estrelinha ☆ de um exercício (nas listas, no banco) ou de uma checagem (nas aulas) para guardá-lo aqui.</div></div>`; return; }
-  el.innerHTML = `<div class="banco-filters card stack-s"><input class="input search" type="search" data-q placeholder="Pesquisar nos salvos…" value="${esc(SF.q)}"><div class="filters" data-sels></div></div><div data-list></div>`;
+  el.innerHTML = `<div class="banco-filters card stack-s"><div class="search-row"><input class="input search" type="search" data-q placeholder="Pesquisar nos salvos…" value="${esc(SF.q)}">${filtToggle('salvos', [SF.topico, SF.org, SF.tag].filter(Boolean).length)}</div><div class="filters" data-sels ${filtBody('salvos')}></div></div><div data-list></div>`;
   const listEl = el.querySelector('[data-list]'), sels = el.querySelector('[data-sels]');
-  const hay = (x) => [x.b.topico, x.b.subtopico, x.b.descricao, x.b.title, x.it.titulo, x.it.materia, x.it.tags.join(' '), nodesTextOf(x.b)].join(' ');
+  wireFilt(el, 'salvos');
+  const tagsX = (x) => [...exTags(saveKey(x.it.id, x.idx)), ...x.it.tags];
+  const hay = (x) => [tagsX(x).join(' '), x.b.topico, x.b.subtopico, x.b.descricao, x.b.title, x.it.titulo, x.it.materia, x.it.tags.join(' '), nodesTextOf(x.b)].join(' ');
   const draw = () => {
-    const base = all.filter((x) => (!SF.org || x.it.tipo === SF.org) && matchQuery(hay(x), SF.q));
+    const tagList = [...new Set(all.flatMap(tagsX))].sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
+    if (SF.tag && !tagList.includes(SF.tag)) SF.tag = '';
+    const base = all.filter((x) => (!SF.org || x.it.tipo === SF.org) && (!SF.tag || tagsX(x).includes(SF.tag)) && matchQuery(hay(x), SF.q));
     const topics = [...new Set(base.map(topicOfSaved))];
     if (!topics.includes(SF.topico)) SF.topico = '';
     const list = base.filter((x) => !SF.topico || topicOfSaved(x) === SF.topico);
     sels.innerHTML = `<select class="select" data-f="topico"><option value="">Todos os tópicos (${base.length})</option>${topics.map((t) => `<option value="${esc(t)}" ${SF.topico === t ? 'selected' : ''}>${esc(t)} (${base.filter((x) => topicOfSaved(x) === t).length})</option>`).join('')}</select>
-      <select class="select" data-f="org"><option value="">Listas e aulas</option><option value="lista" ${SF.org === 'lista' ? 'selected' : ''}>Só das listas</option><option value="aula" ${SF.org === 'aula' ? 'selected' : ''}>Só das aulas</option></select>`;
-    sels.querySelectorAll('[data-f]').forEach((x) => (x.onchange = () => { SF[x.dataset.f] = x.value; draw(); }));
+      <select class="select" data-f="org"><option value="">Listas e aulas</option><option value="lista" ${SF.org === 'lista' ? 'selected' : ''}>Só das listas</option><option value="aula" ${SF.org === 'aula' ? 'selected' : ''}>Só das aulas</option></select>
+      ${tagList.length ? `<select class="select" data-f="tag"><option value="">Todas as tags</option>${tagList.map((t) => `<option value="${esc(t)}" ${SF.tag === t ? 'selected' : ''}>🏷 ${esc(t)}</option>`).join('')}</select>` : ''}`;
+    sels.querySelectorAll('[data-f]').forEach((x) => (x.onchange = () => { SF[x.dataset.f] = x.value; renderSalvos(el, mkey); }));
     listEl.innerHTML = !list.length ? '<div class="card empty">Nada encontrado.</div>' : `<div class="stack-s">${list.map((x, k) => `<div class="card saved-card t-${x.b.type}" data-sv="${k}">
       <div class="saved-src small">${srcLine(x, { materia: !mkey })}</div>
-      ${blockHeader({ ...x.b, title: x.b.type === 'exercicio' ? x.b.title || String(x.idx + 1) : x.b.title }, { saved: true })}${blockBody(x.b)}${answerArea(x.b, { rate: false })}</div>`).join('')}</div>`;
+      ${blockHeader({ ...x.b, title: x.b.type === 'exercicio' ? x.b.title || String(x.idx + 1) : x.b.title }, { saved: true, ref: { id: x.it.id, idx: x.idx } })}${blockBody(x.b)}${answerArea(x.b, { rate: false })}</div>`).join('')}</div>`;
     listEl.querySelectorAll('[data-sv]').forEach((c) => {
       const x = list[+c.dataset.sv];
       hydrate(c); wireAnswer(c, x.b, {}); wireStar(c, x.it.id, x.idx);
@@ -265,6 +278,7 @@ function renderMateria(v, key, params = {}) {
   const tags = tagsOf(all);
   f.tags = f.tags.filter((t) => tags.includes(t));
   const s = matStats(m);
+  const nFiltros = f.tags.length + (aba === 'passos' ? [f.ptopic, f.psub, f.pst].filter(Boolean).length : aba === 'formulas' ? (f.ftopic ? 1 : 0) : 0);
   v.innerHTML = `<div class="narrow fade-in"><div class="page-head"><div class="kicker"><a href="#materias" style="color:inherit">Matérias</a> ›</div>
       <div class="row nowrap between" style="align-items:flex-start"><h1>${esc(m.nome)}</h1><button class="btn sm" data-mopt title="Editar, período, arquivar, clonar, excluir">✎ Editar</button></div>
       <p>${m.cfg.codigo ? `<span class="per-chip cod">${esc(m.cfg.codigo)}</span> ` : ''}${m.cfg.periodo ? `<span class="per-chip">${esc(m.cfg.periodo)}</span> ` : ''}${m.cfg.professor ? `<span class="small muted">${esc(m.cfg.professor)} · </span>` : ''}${m.cfg.arquivada ? '<span class="per-chip arq">arquivada</span> ' : ''}${s.aDone}/${m.aulas.length} aulas · ${s.lDone}/${m.listas.length} listas</p></div>
@@ -272,8 +286,8 @@ function renderMateria(v, key, params = {}) {
       <div class="seg big" data-aba>${[['aulas', 'Aulas'], ['essenciais', 'Essenciais'], ['passos', 'Passo a passo'], ['listas', 'Listas'], ['formulas', 'Fórmulas'], ['salvos', '★ Salvos'], ['acomp', 'Acompanhar']].map(([k, l]) => `<button data-v="${k}" class="${aba === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       ${['aulas', 'listas', 'essenciais'].includes(aba) && Store.isAdmin && ({ aulas: m.aulas, listas: m.listas, essenciais: m.essenciais }[aba]).length > 1 ? `<button class="btn sm" data-reorder>↕ Reordenar</button>` : aba === 'formulas' ? `<button class="btn sm" data-print>Imprimir</button>` : ''}
     </div>
-    ${!['salvos', 'acomp'].includes(aba) ? `<input class="input search" type="search" data-mq placeholder="${{ aulas: 'Pesquisar aulas…', listas: 'Pesquisar listas…', formulas: 'Pesquisar fórmulas…', essenciais: 'Pesquisar nos essenciais…', passos: 'Pesquisar tipos de questão…' }[aba]}" value="${esc(f.q || '')}" style="margin-bottom:12px">` : ''}
-    ${tags.length && !['salvos', 'acomp'].includes(aba) ? `<div class="tagbar" data-tags><span class="caps muted small">Filtrar</span>${tags.map((t) => `<button class="tag ${f.tags.includes(t) ? 'on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}${f.tags.length ? `<button class="btn xs ghost" data-clear>limpar</button>` : ''}</div>` : ''}
+    ${!['salvos', 'acomp'].includes(aba) ? `<div class="search-row" style="margin-bottom:12px"><input class="input search" type="search" data-mq placeholder="${{ aulas: 'Pesquisar aulas…', listas: 'Pesquisar listas…', formulas: 'Pesquisar fórmulas…', essenciais: 'Pesquisar nos essenciais…', passos: 'Pesquisar tipos de questão…' }[aba]}" value="${esc(f.q || '')}">${tags.length || ['passos', 'formulas'].includes(aba) ? filtToggle('mat', nFiltros) : ''}</div>` : ''}
+    ${tags.length && !['salvos', 'acomp'].includes(aba) ? `<div class="tagbar" data-tags ${filtBody('mat')}><span class="caps muted small">Tags</span>${tags.map((t) => `<button class="tag ${f.tags.includes(t) ? 'on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}${f.tags.length ? `<button class="btn xs ghost" data-clear>limpar</button>` : ''}</div>` : ''}
     <div data-body></div></div>`;
   const body = v.querySelector('[data-body]');
   const drawBody = () => {
@@ -286,6 +300,7 @@ function renderMateria(v, key, params = {}) {
     else renderFormulas(body, m, f);
   };
   drawBody();
+  wireFilt(v, 'mat');
   let mt; v.querySelector('[data-mq]')?.addEventListener('input', (e) => { clearTimeout(mt); mt = setTimeout(() => { f.q = e.target.value; drawBody(); }, 150); });
   v.querySelector('[data-aba]').onclick = (e) => { const b = e.target.closest('[data-v]'); if (b) renderMateria(v, key, { aba: b.dataset.v }); };
   v.querySelectorAll('[data-tag]').forEach((b) => (b.onclick = () => { const t = b.dataset.tag; f.tags = f.tags.includes(t) ? f.tags.filter((x) => x !== t) : [...f.tags, t]; renderMateria(v, key, { aba }); }));
@@ -328,7 +343,7 @@ function renderMapa(el, m, f) {
   const list = m.listas.filter((l) => matchTags(l, f.tags) && matchQuery(itemHay(l), f.q));
   if (!m.listas.length) { el.innerHTML = `<div class="card empty">Nenhuma lista de exercícios nesta matéria ainda.<div style="margin-top:12px"><button class="btn sm" data-goto="estudio">Importar listas</button></div></div>`; return; }
   if (!list.length) { el.innerHTML = '<div class="card empty">Nenhuma lista com esse filtro.</div>'; return; }
-  const STEP = 150, TOP = 70;
+  const STEP = compacta() ? 112 : 150, TOP = compacta() ? 56 : 70;
   const xs = list.map((_, i) => 50 + 26 * Math.sin(i * 1.25));
   const H = TOP + (list.length - 1) * STEP + 110;
   let path = '';
@@ -368,12 +383,14 @@ function openEssencial(v, id) {
   const i = grp.findIndex((x) => x.id === e.id);
   const prev = grp[i - 1], next = grp[i + 1];
   v.innerHTML = `<div class="narrow fade-in"><div class="page-head"><div class="kicker"><a href="#materia/${esc(e.mkey)}" data-back style="color:inherit">${esc(e.materia)}</a> › Essenciais</div>
-      <h1>${inl(e.meta.topico || e.titulo)}</h1>${e.meta.descricao ? `<p>${inl(e.meta.descricao)}</p>` : ''}</div>
+      <h1>${inl(e.meta.topico || e.titulo)}</h1>${e.meta.descricao ? `<p>${inl(e.meta.descricao)}</p>` : ''}<div class="no-print" style="margin-top:8px">${itemTagsRow(e)}</div></div>
     <div class="row between no-print" style="margin-bottom:12px"><input class="input search" type="search" data-q placeholder="Pesquisar neste tópico…" style="flex:1;min-width:180px"><button class="btn sm" data-print>Imprimir</button></div>
     <div class="ess-toc no-print">${e.parsed.blocks.map((b, k) => `<button class="tag" data-go="${k}">${inl(b.title || 'Geral')}</button>`).join('')}</div>
-    <div data-secs>${e.parsed.blocks.map((b, k) => `<section class="card ess-sec" id="ess-${k}" data-k="${k}"><div class="row nowrap between"><h3>${inl(b.title || 'Geral')}</h3><button class="icon-btn sm no-print" data-say title="Ouvir">🔊</button></div>${richHtml(b.nodes)}</section>`).join('')}</div>
+    <div data-secs>${e.parsed.blocks.map((b, k) => `<section class="card ess-sec" id="ess-${k}" data-k="${k}"><div class="row nowrap between"><h3>${inl(b.title || 'Geral')}</h3><span class="row nowrap no-print" style="gap:6px"><button class="icon-btn sm" data-copyctx title="Copiar contexto (para tirar dúvida no ChatGPT)">⧉</button><button class="icon-btn sm" data-say title="Ouvir">🔊</button></span></div>${richHtml(b.nodes)}</section>`).join('')}</div>
     <div class="row between no-print" style="margin-top:16px">${prev ? `<a class="btn sm" href="#essencial/${esc(prev.id)}">← ${inl(prev.meta.topico || prev.titulo)}</a>` : '<span></span>'}${next ? `<a class="btn sm" href="#essencial/${esc(next.id)}">${inl(next.meta.topico || next.titulo)} →</a>` : ''}</div></div>`;
   v.querySelector('[data-back]').onclick = (ev) => { ev.preventDefault(); go('#materia/' + e.mkey, { aba: 'essenciais' }); };
+  wireItemTags(v, e, () => openEssencial(v, id));
+  v.querySelectorAll('[data-copyctx]').forEach((b) => (b.onclick = () => copyContext(e, e.parsed.blocks[+b.closest('[data-k]').dataset.k])));
   v.querySelectorAll('[data-say]').forEach((b) => { const sec = e.parsed.blocks[+b.closest('[data-k]').dataset.k]; wireSay(b, () => `${sec.title || ''}. ${speechOf(sec.nodes)}`); });
   v.querySelectorAll('[data-go]').forEach((b) => (b.onclick = () => document.getElementById('ess-' + b.dataset.go)?.scrollIntoView({ behavior: 'smooth', block: 'start' })));
   v.querySelector('[data-print]').onclick = () => window.print();
@@ -383,6 +400,7 @@ function openEssencial(v, id) {
 
 // ---------- Passo a passo ----------
 function renderPassos(el, m, f) {
+  setFiltCount(document, 'mat', f.tags.length + [f.ptopic, f.psub, f.pst].filter(Boolean).length);
   const cards = m.passos.flatMap((it) => it.parsed.blocks.map((b, k) => ({ it, b, k, topico: it.meta.topico || it.titulo, sub: b.subtopico || '' })));
   if (!cards.length) { el.innerHTML = `<div class="card empty">Ainda não há passo a passo nesta matéria.<div class="small" style="margin-top:8px">Cada tipo de questão ganha um roteiro: quando usar, os passos, a fórmula e os cuidados. Gere com o prompt do pacote da matéria (Estúdio › Prompts para IA).</div></div>`; return; }
   const topics = [...new Set(cards.map((c) => c.topico))];
@@ -395,7 +413,7 @@ function renderPassos(el, m, f) {
   const list = cards.filter((c) => matchTags(c.it, f.tags) && (!f.ptopic || c.topico === f.ptopic) && (!f.psub || c.sub === f.psub) && passSt(c) && matchQuery(hay(c), f.q));
   const nOk = cards.filter((c) => st(c).ok).length, nFav = cards.filter((c) => st(c).fav).length;
   let lastT = null, lastS = null;
-  el.innerHTML = `<div class="topic-row">
+  el.innerHTML = `<div class="topic-row" ${filtBody('mat')}>
       <select class="select topic-sel" data-pt><option value="">Todos os tópicos (${cards.length})</option>${topics.map((t) => `<option value="${esc(t)}" ${f.ptopic === t ? 'selected' : ''}>${esc(t)} (${cards.filter((c) => c.topico === t).length})</option>`).join('')}</select>
       ${f.ptopic && subsOf(f.ptopic).length ? `<select class="select topic-sel" data-ps><option value="">Todos os subtópicos</option>${subsOf(f.ptopic).map((t) => `<option value="${esc(t)}" ${f.psub === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>` : ''}
       <select class="select topic-sel" data-pst>${[['', 'Qualquer marcação'], ['fav', `★ Favoritos (${nFav})`], ['todo', `Ainda não aprendidos (${cards.length - nOk})`], ['ok', `✓ Aprendidos (${nOk})`]].map(([v, l]) => `<option value="${v}" ${f.pst === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -409,7 +427,7 @@ function renderPassos(el, m, f) {
         <span class="pp-acts"><button type="button" class="icon-btn sm star ${S2.fav ? 'on' : ''}" data-pfav title="${S2.fav ? 'Tirar dos favoritos' : 'Favoritar (para focar)'}">${S2.fav ? '★' : '☆'}</button><button type="button" class="icon-btn sm chk ${S2.ok ? 'on' : ''}" data-pok title="${S2.ok ? 'Desmarcar aprendido' : 'Marcar como aprendido'}">✓</button></span></summary>
         <div class="pp-body">
           ${c.b.quando.length ? `<div class="pp-sec"><div class="caps muted small">Quando usar</div>${richHtml(c.b.quando)}</div>` : ''}
-          <div class="pp-sec pp-steps"><div class="row between"><div class="caps muted small">Passo a passo</div><button class="icon-btn sm no-print" data-say title="Ouvir">🔊</button></div>${richHtml(c.b.passos)}</div>
+          <div class="pp-sec pp-steps"><div class="row between"><div class="caps muted small">Passo a passo</div><span class="row nowrap no-print" style="gap:6px"><button class="icon-btn sm" data-copyctx title="Copiar contexto (para tirar dúvida no ChatGPT)">⧉</button><button class="icon-btn sm" data-say title="Ouvir">🔊</button></span></div>${richHtml(c.b.passos)}</div>
           ${c.b.formula.length ? `<div class="pp-sec fml"><div class="caps muted small">Fórmula</div>${richHtml(c.b.formula)}</div>` : ''}
           ${c.b.cuidado.length ? `<div class="pp-sec callout warn" style="display:block"><div class="caps muted small">Cuidado</div>${richHtml(c.b.cuidado)}</div>` : ''}
           ${c.b.exemplo.length ? `<details class="steps-box"><summary>Exemplo</summary>${richHtml(c.b.exemplo)}</details>` : ''}
@@ -421,6 +439,7 @@ function renderPassos(el, m, f) {
     const c = list[+d.dataset.pp];
     d.addEventListener('toggle', () => { if (d.open) { hydrate(d); } }, { once: false });
     wireSay(d.querySelector('[data-say]'), () => `${c.b.title}. ${speechOf(c.b.passos)}`);
+    d.querySelector('[data-copyctx]').onclick = (ev) => { ev.preventDefault(); copyContext(c.it, c.b); };
     const key = c.it.id + '#' + c.k;
     const tog = (prop) => (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -453,18 +472,19 @@ function splitFormula(b) {
   return segs.filter((sg) => sg.nodes.length || sg.title);
 }
 function renderFormulas(el, m, f) {
+  setFiltCount(document, 'mat', f.tags.length + (f.ftopic ? 1 : 0));
   const allF = m.aulas.flatMap((a) => a.parsed.formulas);
   const T = topicsOf(allF);
   if (f.ftopic && !allF.some((b) => matchTopic(b, f.ftopic))) f.ftopic = '';
   const fOk = (a, b) => matchTopic(b, f.ftopic) && matchQuery([a.titulo, b.title, b.topico, b.subtopico, b.descricao, b.leitura, nodesText(b.nodes)].join(' '), f.q);
   const aulas = m.aulas.filter((a) => matchTags(a, f.tags) && a.parsed.formulas.some((b) => fOk(a, b)));
-  const sel = T.length ? `<div class="topic-row no-print"><span class="caps muted small">Tópico</span><select class="select topic-sel" data-ftopic><option value="">Todos os tópicos (${allF.length})</option>
+  const sel = T.length ? `<div class="topic-row no-print" ${filtBody('mat')}><span class="caps muted small">Tópico</span><select class="select topic-sel" data-ftopic><option value="">Todos os tópicos (${allF.length})</option>
     ${T.map((t) => `<option value="${esc(t.topico)}" ${f.ftopic === t.topico ? 'selected' : ''}>${esc(t.topico)}</option>${t.subs.map((sb) => { const v = t.topico + ' › ' + sb; return `<option value="${esc(v)}" ${f.ftopic === v ? 'selected' : ''}>${esc(v)}</option>`; }).join('')}`).join('')}</select></div>` : '';
   if (!aulas.length) { el.innerHTML = sel + `<div class="card empty">${allF.length ? 'Nenhuma fórmula com esse filtro.' : 'Nenhuma fórmula ainda. Cada bloco "== FORMULA" das aulas entra aqui sozinho.'}</div>`; wireFt(); return; }
   el.innerHTML = `${sel}<div class="folha"><div class="print-only"><h1>${esc(m.nome)} · folha de fórmulas</h1></div>${aulas.map((a) => `<section class="folha-sec">
     <div class="folha-h"><a href="#aula/${esc(a.id)}">${inl(a.titulo)}</a></div>
     ${a.parsed.formulas.map((b, k) => (fOk(a, b) ? splitFormula(b).map((sg, j) => `<div class="card formula-card" data-fk="${esc(a.id)}|${k}|${j}">
-      <div class="row nowrap between"><div class="fname">${inl(sg.title || b.title || 'Fórmula')}</div><button class="icon-btn sm no-print" data-say title="Ouvir">🔊</button></div>
+      <div class="row nowrap between"><div class="fname">${inl(sg.title || b.title || 'Fórmula')}</div><span class="row nowrap no-print" style="gap:6px"><button class="icon-btn sm" data-copyctx title="Copiar contexto (para tirar dúvida no ChatGPT)">⧉</button><button class="icon-btn sm" data-say title="Ouvir">🔊</button></span></div>
       ${j === 0 ? topicLine(b) : ''}${richHtml(sg.nodes)}</div>`).join('') : '')).join('')}</section>`).join('')}</div>`;
   wireFt();
   function wireFt() { el.querySelector('[data-ftopic]')?.addEventListener('change', (e) => { f.ftopic = e.target.value; renderFormulas(el, m, f); }); }
@@ -473,6 +493,7 @@ function renderFormulas(el, m, f) {
     const b = itemById(id).parsed.formulas[+k];
     const sg = splitFormula(b)[+j];
     wireSay(c.querySelector('[data-say]'), () => `${sg.title || b.title}. ${sg.leitura || speechOf(sg.nodes)}`);
+    c.querySelector('[data-copyctx]').onclick = () => copyContext(itemById(id), b);
   });
   hydrate(el);
 }
@@ -541,6 +562,7 @@ function renderSettings(v) {
     <div class="card stack"><h3>Aparência</h3>
       <div><label class="lbl">Tema</label>${seg('tema', [['claro', 'Dia'], ['noite', 'Noite']])}</div>
       <div><label class="lbl">Tamanho do texto</label>${seg('fonte', [['p', 'Pequeno'], ['m', 'Médio'], ['g', 'Grande']])}</div>
+      <div><label class="lbl">Visão</label>${seg('vista', [['normal', 'Normal'], ['compacta', 'Compacta']])}<p class="tiny muted" style="margin:4px 0 0">A compacta deixa tudo um pouco menor e menos espaçado, para caber mais coisa na tela. Também dá para trocar pelo botão ▤ no menu.</p></div>
     </div>
     <div class="card stack"><h3>Instalar como app</h3>
       ${isStandalone() ? '<p style="margin:0">✓ Você já está usando o app instalado.</p>' : installEvt ? '<p style="margin:0">Instale para abrir direto da tela inicial, em tela cheia e funcionando offline.</p><div><button class="btn primary" data-install>Instalar app</button></div>'

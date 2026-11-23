@@ -7,8 +7,10 @@ import { esc, plural, toast, copyText, confirmBox } from './util.js';
 import { hydrate, inl, richHtml } from './render.js';
 import { blockHeader, blockBody, answerArea, wireAnswer } from './aula.js';
 import { collectText, collectFiles, reviewImport, exportItem, exportMateria, exportBackup, exampleFiles, packMediaMap } from './importer.js';
-import { promptPacote, promptPassos, promptListas, MODELO_AULA, MODELO_LISTA, MODELO_ESSENCIAL, MODELO_PASSOS, MODOS_LISTA } from './prompts.js';
+import { promptPacote, promptPassos, promptListas, promptUmaAula, MODELO_AULA, MODELO_LISTA, MODELO_ESSENCIAL, MODELO_PASSOS, MODOS_LISTA } from './prompts.js';
 import { reorderModal } from './app.js';
+import { editTags, setItemTags } from './tags.js';
+import { openAddExercicios } from './addex.js';
 
 const TABS = [['colar', 'Colar uma'], ['importar', 'Importar vários'], ['itens', 'Minhas aulas e listas'], ['prompts', 'Prompts para IA'], ['modelo', 'Modelo do código']];
 let tab = 'colar';
@@ -145,7 +147,7 @@ async function panelItens(el, { go, v }) {
         <div class="row" style="gap:6px"><button class="btn xs" data-expm="${esc(m.key)}">⇩ Exportar matéria</button>${Store.isAdmin ? `<button class="btn xs ghost danger" data-delm="${esc(m.key)}">Apagar matéria</button>` : ''}</div></div>
       ${[['aula', 'Aulas', m.aulas], ['essencial', 'Essenciais', m.essenciais], ['passos', 'Passo a passo', m.passos], ['lista', 'Listas', m.listas]].filter(([, , l]) => l.length).map(([tipo, lab, l]) => `<div><div class="row between" style="margin-top:6px"><div class="caps muted small">${lab}</div>${l.length > 1 && Store.isAdmin ? `<button class="btn xs ghost" data-reo="${esc(m.key)}|${tipo}">↕ Reordenar</button>` : ''}</div>
         ${l.map((it, i) => `<div class="lesson-row" data-hay="${esc(itemHay(it) + ' ' + it.id)}"><span class="n-chip">${i + 1}</span><div class="grow"><div>${inl(it.titulo)}</div><div class="tiny muted">${it.tags.map(esc).join(' · ')}${it.parsed.warnings.length ? ` · <span style="color:var(--butter-d)">${plural(it.parsed.warnings.length, 'aviso')}</span>` : ''}${Store.configured ? ` · <span class="src">${it.origem === 'nuvem' ? 'nuvem' : 'aparelho'}</span>` : ''}</div></div>
-          <div class="row nowrap" style="gap:4px"><a class="btn xs" href="#${tipo}/${esc(it.id)}">Abrir</a>${Store.isAdmin || it.origem === 'local' ? `<button class="btn xs" data-edit="${esc(it.id)}">Editar</button>` : ''}<button class="btn xs" data-exp="${esc(it.id)}|${i + 1}" title="Exportar">⇩</button>${Store.isAdmin || it.origem === 'local' ? `<button class="btn xs ghost danger" data-del="${esc(it.id)}" title="Apagar">✕</button>` : ''}</div></div>`).join('')}</div>`).join('')}
+          <div class="row nowrap" style="gap:4px"><a class="btn xs" href="#${tipo}/${esc(it.id)}">Abrir</a><button class="btn xs" data-tg="${esc(it.id)}" title="Adicionar ou tirar tags">🏷</button>${tipo === 'lista' ? `<button class="btn xs" data-addx="${esc(it.id)}" title="Adicionar exercícios a esta lista">+ Ex.</button>` : ''}${Store.isAdmin || it.origem === 'local' ? `<button class="btn xs" data-edit="${esc(it.id)}">Editar</button>` : ''}<button class="btn xs" data-exp="${esc(it.id)}|${i + 1}" title="Exportar">⇩</button>${Store.isAdmin || it.origem === 'local' ? `<button class="btn xs ghost danger" data-del="${esc(it.id)}" title="Apagar">✕</button>` : ''}</div></div>`).join('')}</div>`).join('')}
     </div>`).join('')}
     <div class="card stack-s" data-media><h3>Figuras e interativos</h3><div class="small muted">Verificando…</div></div>
   </div>`;
@@ -157,6 +159,8 @@ async function panelItens(el, { go, v }) {
   el.querySelector('[data-backup]').onclick = async (e) => { e.target.disabled = true; try { await exportBackup(); } finally { e.target.disabled = false; } };
   el.querySelectorAll('[data-expm]').forEach((b) => (b.onclick = async () => { b.disabled = true; try { await exportMateria(mats.find((m) => m.key === b.dataset.expm)); } finally { b.disabled = false; } }));
   el.querySelectorAll('[data-exp]').forEach((b) => (b.onclick = () => { const [id, n] = b.dataset.exp.split('|'); exportItem(itemById(id), +n); }));
+  el.querySelectorAll('[data-tg]').forEach((b) => (b.onclick = () => { const it = itemById(b.dataset.tg); editTags({ titulo: it.titulo, tags: it.tags, onSave: async (t) => { await setItemTags(it, t); panelItens(el, { go, v }); } }); }));
+  el.querySelectorAll('[data-addx]').forEach((b) => (b.onclick = () => openAddExercicios(itemById(b.dataset.addx), { after: () => panelItens(el, { go, v }) })));
   el.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => { draft = itemById(b.dataset.edit).codigo; lsSet('rascunho', draft); tab = 'colar'; renderStudio(v, { go }); window.scrollTo({ top: 0 }); }));
   el.querySelectorAll('[data-del]').forEach((b) => (b.onclick = async () => {
     const it = itemById(b.dataset.del);
@@ -224,6 +228,12 @@ function panelPrompts(el) {
       ${ta('focoA', 'Foco e instruções específicas', 'ex.: focar no que caiu na P1 de 2024.1; seguir os slides da aula 5; mais exemplos numéricos', 70)}
       <div class="row"><button class="btn primary" data-copy="aulas">Copiar prompt do pacote</button><button class="btn ghost sm" data-show="aulas">Ver prompt</button></div>
       <pre class="ref" data-pre="aulas" hidden></pre></div>
+    <div class="card stack-s"><h3>Uma aula</h3>
+      <p class="small muted" style="margin:0">Para acrescentar UMA aula específica a esta matéria (por exemplo, um assunto que faltou). O prompt já manda a lista das aulas que existem, para a IA não repetir. Ao importar, você escolhe a posição dela na trilha.</p>
+      ${ta('assuntoU', 'Assunto da aula', 'ex.: 2.3 Coordenadas cilíndricas; ou: revisão de integrais triplas para a P2', 60)}
+      ${ta('detalhesU', 'Detalhes e foco (opcional)', 'ex.: seguir os slides da aula 12; mais exemplos numéricos; incluir a questão 4 da P2 de 2023.2', 70)}
+      <div class="row"><button class="btn primary" data-copy="uma">Copiar prompt de uma aula</button><button class="btn ghost sm" data-show="uma">Ver prompt</button></div>
+      <pre class="ref" data-pre="uma" hidden></pre></div>
     <div class="card stack-s"><h3>Passo a passo</h3>
       <p class="small muted" style="margin:0">Só o passo a passo, do jeito que você descrever. Os tipos de questão vêm das listas e provas das fontes (ou, sem elas, dos exercícios do livro-texto).</p>
       ${ta('parteP', 'Parte da matéria', 'ex.: tópicos 1 e 2; vazio = a matéria toda', 60)}
@@ -237,8 +247,13 @@ function panelPrompts(el) {
       ${f.modoL !== 'descricao' ? '<p class="tiny muted" style="margin:0">Lembre de anexar os exercícios (PDF, foto ou texto) junto com o prompt na conversa.</p>' : ''}
       <div class="row"><button class="btn primary" data-copy="listas">Copiar prompt de listas</button><button class="btn ghost sm" data-show="listas">Ver prompt</button></div>
       <pre class="ref" data-pre="listas" hidden></pre></div>
+    <div class="card stack-s"><h3>Exercícios para uma lista que já existe</h3>
+      <p class="small muted" style="margin:0">Gera o prompt para criar exercícios novos (a partir de uma descrição, de anexados ou inspirados neles) já numerados a partir do próximo número da lista, e abre o espaço para colar o que a IA devolver. Os exercícios entram no fim da lista.</p>
+      ${m?.listas.length ? `<div class="row nowrap"><select class="select grow" data-lsel>${m.listas.map((l) => `<option value="${esc(l.id)}" ${l.id === f.listaX ? 'selected' : ''}>${esc(l.titulo)} (${l.parsed.blocks.length})</option>`).join('')}</select><button class="btn primary" data-addex>Gerar e adicionar →</button></div>` : '<p class="small muted" style="margin:0">Esta matéria ainda não tem listas.</p>'}
+    </div>
   </div>`;
-  const gen = (k) => (k === 'aulas'
+  const gen = (k) => (k === 'uma' ? promptUmaAula({ materia: f.materia, sigla: f.sigla, topicos: f.topicos, ementa: f.ementa, assunto: f.assuntoU, detalhes: f.detalhesU, existentes: (m?.aulas || []).map((a) => a.titulo + (a.meta.subtopico && a.meta.subtopico !== a.titulo ? ` (${a.meta.subtopico})` : '')) })
+    : k === 'aulas'
     ? promptPacote({ materia: f.materia, sigla: f.sigla, topicos: f.topicos, ementa: f.ementa, parte: f.parteA, foco: f.focoA, incluir: { aulas: f.incA, essenciais: f.incE, passos: f.incP, listas: f.incL }, detalhes: { aulas: f.detA, essenciais: f.detE, passos: f.detP, listas: f.detL } })
     : k === 'passos' ? promptPassos({ materia: f.materia, sigla: f.sigla, topicos: f.topicos, ementa: f.ementa, parte: f.parteP, detalhes: f.detalhesP })
     : promptListas({ materia: f.materia, sigla: f.sigla, divisao: f.topicos, ementa: f.ementa, topicos: f.topicosL, detalhes: f.detalhesL, modo: f.modoL }));
@@ -255,6 +270,10 @@ function panelPrompts(el) {
   el.querySelectorAll('[data-inc]').forEach((c) => (c.onchange = () => { f[c.dataset.inc] = c.checked; lsSet('promptCampos', local()); panelPrompts(el); }));
   el.querySelectorAll('input[name=modoL]').forEach((r) => (r.onchange = () => { f.modoL = r.value; lsSet('promptCampos', local()); panelPrompts(el); }));
   el.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = () => copyText(gen(b.dataset.copy))));
+  el.querySelector('[data-addex]')?.addEventListener('click', () => {
+    f.listaX = el.querySelector('[data-lsel]').value; lsSet('promptCampos', local());
+    const L = itemById(f.listaX); if (L) openAddExercicios(L, { after: () => panelPrompts(el) });
+  });
   el.querySelectorAll('[data-show]').forEach((b) => (b.onclick = () => { const p = el.querySelector(`[data-pre="${b.dataset.show}"]`); p.hidden = !p.hidden; p.textContent = gen(b.dataset.show); }));
 }
 

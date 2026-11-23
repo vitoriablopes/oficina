@@ -4,6 +4,8 @@ import { richHtml, hydrate, inl } from './render.js';
 import * as TTS from './speech.js';
 import { Store, save } from './store.js';
 import { itemById, listaProg, listaStats, saveLista, bump, dayRec, topicsOf, matchTopic, isSaved } from './data.js';
+import { itemTagsRow, wireItemTags } from './tags.js';
+import { openAddExercicios } from './addex.js';
 import { blockHeader, blockBody, answerArea, wireAnswer, wireSay, wireStar } from './aula.js';
 import { speechOf } from './render.js';
 import { speakable } from './math.js';
@@ -45,7 +47,7 @@ export function openLista(view, id, { go }) {
       ${topicSelect(blocks, p.filtro) ? `<div class="topic-row"><span class="caps muted small">Estudar</span>${topicSelect(blocks, p.filtro)}</div>` : ''}
       <div class="card block-card t-exercicio" data-block>
         ${r.erros || r.pulos ? `<div class="selos">${r.erros ? `<span class="selo erro">✗ Você errou este ${r.erros === 1 ? 'uma vez' : r.erros + ' vezes'}</span>` : ''}${r.pulos ? `<span class="selo pulo">↷ pulado ${r.pulos === 1 ? 'uma vez' : r.pulos + ' vezes'}</span>` : ''}</div>` : ''}
-        ${blockHeader({ ...b, title: b.title || String(i + 1) }, { saved: isSaved(L.id, i) })}${blockBody(b)}${answerArea(b, { rateLabel: 'Como foi?' })}
+        ${blockHeader({ ...b, title: b.title || String(i + 1) }, { saved: isSaved(L.id, i), ref: { id: L.id, idx: i } })}${blockBody(b)}${answerArea(b, { rateLabel: 'Como foi?' })}
       </div>
       <div class="lesson-foot"><span class="small muted" style="align-self:center">${vis.length === 1 ? 'Último que falta' + (p.filtro ? ' neste tópico' : '') : plural(vis.length, 'exercício na fila', 'exercícios na fila') + (p.filtro ? ' deste tópico' : '')}</span><button class="btn lg" data-skip>Pular ↷</button></div>
     </div>`;
@@ -105,11 +107,14 @@ export function openLista(view, id, { go }) {
   function overview() {
     const q = listaProg(L);
     modal(`<div class="stack"><div class="row between"><h3>${inl(L.titulo)}</h3><button class="btn sm ghost" data-close>Fechar</button></div>
-      <p class="small muted" style="margin:0">Toque num exercício pendente para resolvê-lo agora.</p>
+      ${itemTagsRow(L)}
+      <div class="row between"><p class="small muted" style="margin:0">Toque num exercício pendente para resolvê-lo agora.</p><button class="btn xs" data-addex>+ Adicionar exercícios</button></div>
       <div class="stack-s">${blocks.map((b, i) => { const r = q.res[i] || {}; const pos = q.fila.indexOf(i);
         return `<button class="ov-row ${r.st === 'ok' ? 'ok' : ''}" data-ov="${i}"><span class="ov-st">${r.st === 'ok' ? '✓' : r.st === 'erro' ? '✗' : r.pulos ? '↷' : '○'}</span>
           <span class="grow" style="text-align:left">${esc(exName(b, i))}${b.topico ? ` <span class="tiny muted">· ${esc(b.topico)}${b.subtopico ? ' › ' + esc(b.subtopico) : ''}</span>` : ''}${b.descricao ? `<div class="tiny muted">${inl(b.descricao)}</div>` : ''}</span>
           <span class="tiny muted">${r.st === 'ok' ? (r.erros ? `acertei depois de ${plural(r.erros, 'erro')}` : 'acertei de primeira') : pos === 0 ? 'agora' : pos > 0 ? `${pos + 1}º na fila` : ''}${r.st !== 'ok' && r.erros ? ` · ${plural(r.erros, 'erro')}` : ''}</span></button>`; }).join('')}</div></div>`, (m, close) => {
+      wireItemTags(m, L, () => { close(); reopen(); });
+      m.querySelector('[data-addex]').onclick = () => { close(); openAddExercicios(L, { after: reopen }); };
       m.querySelectorAll('[data-ov]').forEach((x) => (x.onclick = () => {
         const i = +x.dataset.ov;
         if (q.res[i]?.st === 'ok') { close(); peek(i); return; }
@@ -121,7 +126,7 @@ export function openLista(view, id, { go }) {
   }
   function peek(i) {
     const b = blocks[i];
-    modal(`<div class="t-exercicio">${blockHeader({ ...b, title: b.title || String(i + 1) }, { say: false, saved: isSaved(L.id, i) })}${blockBody(b)}${answerArea(b, { rate: false })}</div><div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn sm" data-close>Fechar</button></div>`, (m) => { hydrate(m); wireAnswer(m, b, { open: true }); wireStar(m, L.id, i); }, { wide: true });
+    modal(`<div class="t-exercicio">${blockHeader({ ...b, title: b.title || String(i + 1) }, { say: false, saved: isSaved(L.id, i), ref: { id: L.id, idx: i } })}${blockBody(b)}${answerArea(b, { rate: false })}</div><div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn sm" data-close>Fechar</button></div>`, (m) => { hydrate(m); wireAnswer(m, b, { open: true }); wireStar(m, L.id, i); }, { wide: true });
   }
   function renderIntro() {
     const st = listaStats(L);
@@ -133,15 +138,17 @@ export function openLista(view, id, { go }) {
         <h1>${inl(L.titulo)}</h1>
         ${L.meta.descricao ? `<p style="margin:0;font-size:1.08em">${inl(L.meta.descricao)}</p>` : ''}
         <div class="row"><span class="chip">${plural(st.n, 'exercício')}</span>${origens.length ? `<span class="chip">${esc(origens.slice(0, 3).join(' · '))}${origens.length > 3 ? '…' : ''}</span>` : ''}</div>
-        ${L.tags.length ? `<div class="row">${L.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
+        ${itemTagsRow(L)}
         <div class="card flat soft small stack-s" style="padding:14px 16px">
           <div>↷ <b>Pular</b> manda o exercício para o fim da fila.</div>
           <div>✗ <b>Errei</b> também manda para o fim, marcado como errado.</div>
           <div>✓ <b>Acertei</b> tira da fila. A lista termina quando todos estiverem certos.</div></div>
         ${topicSelect(blocks, '') ? `<div><label class="lbl">Estudar</label>${topicSelect(blocks, '')}</div>` : ''}
-        <div class="row" style="justify-content:flex-end"><button class="btn primary lg" data-start>Começar</button></div>
+        <div class="row between"><button class="btn sm ghost" data-addex>+ Adicionar exercícios</button><button class="btn primary lg" data-start>Começar</button></div>
       </div></div>`;
     view.querySelector('[data-close]').onclick = back;
+    wireItemTags(view, L, reopen);
+    view.querySelector('[data-addex]').onclick = () => openAddExercicios(L, { after: reopen });
     view.querySelector('[data-start]').onclick = () => { const q = listaProg(L, { create: true }); q.filtro = view.querySelector('[data-topic]')?.value || ''; saveLista(); render(); };
   }
   function renderDone() {
@@ -171,5 +178,6 @@ export function openLista(view, id, { go }) {
       q.fila = [...errados]; q.concluida = null; q.rodada = (q.rodada || 1) + 1; saveLista(); render();
     });
   }
+  function reopen() { openLista(view, L.id, { go }); }
   render();
 }

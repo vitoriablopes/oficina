@@ -10,7 +10,7 @@ const FB = '10.12.2';
 const LS = 'oficina:';
 const DOC_NAMES = ['perfil', 'progresso'];
 export const DEFAULTS = {
-  perfil: { nome: '', tema: 'claro', fonte: 'm', voz: '', vel: 'normal', ultima: null, aba: {}, materias: {} },
+  perfil: { nome: '', tema: 'claro', fonte: 'm', vista: 'normal', voz: '', vel: 'normal', ultima: null, aba: {}, materias: {} },
   progresso: { aulas: {}, listas: {}, salvos: {}, passos: {}, acomp: {}, tempo: {}, dias: {}, stats: { chk: 0, chkOk: 0, ex: 0, exOk: 0 } },
 };
 export const CLOUD_MEDIA_MAX = 900000; // caracteres por mídia na nuvem (limite de 1 MB por documento do Firestore)

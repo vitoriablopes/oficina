@@ -884,3 +884,76 @@ a.card.row { display: flex; }
 body.focus .lesson-shell { padding-bottom: 76px; }
 .main { padding-bottom: 80px; }
 @media (max-width: 860px) { .main { padding-bottom: calc(var(--nav-h) + 96px + env(safe-area-inset-bottom)); } body.focus .main { padding-bottom: 24px; } }
+
+/* ---------- filtros recolhíveis ---------- */
+.search-row { display: flex; gap: 8px; align-items: center; }
+.search-row .search { flex: 1; min-width: 0; }
+.filt-tog { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line2); background: var(--paper); color: var(--ink2); font-size: .9rem; }
+.filt-tog:hover { background: var(--bg2); }
+.filt-tog .chev { display: inline-block; transition: transform .2s; font-size: .8em; }
+.filt-tog.open { background: var(--rose); border-color: transparent; color: var(--ink); }
+.filt-tog.open .chev { transform: rotate(180deg); }
+.filt-n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: #fff; font-size: .74rem; display: inline-grid; place-items: center; font-weight: 600; }
+.banco-filters .filters[hidden], .tagbar[hidden], .topic-row[hidden] { display: none; }
+
+/* ---------- ferramentas do bloco: copiar contexto e tags ---------- */
+.blk-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: -10px 0 14px; }
+.blk-tools .btn.xs { color: var(--ink2); padding: 3px 9px; }
+.blk-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.blk-tags:empty { display: none; }
+.bank-row .blk-tags { margin-top: 4px; }
+.tag-edit { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-edit .tag button { border: 0; background: none; color: inherit; margin-left: 4px; padding: 0 2px; font-size: 1rem; line-height: 1; cursor: pointer; }
+.tag-line { gap: 6px; }
+.vista-tog { margin-top: 4px; }
+
+/* ---------- visão compacta ---------- */
+:root[data-vista='compacta'] body { font-size: calc(var(--fs) * .92); line-height: 1.45; }
+:root[data-vista='compacta'] .main { padding-top: 22px; }
+:root[data-vista='compacta'] .narrow { max-width: 900px; }
+:root[data-vista='compacta'] .wrap { max-width: 1100px; }
+:root[data-vista='compacta'] .lesson-shell { max-width: 900px; }
+:root[data-vista='compacta'] .card { padding: 14px 16px; border-radius: 14px; }
+:root[data-vista='compacta'] .card .card { padding: 11px; }
+:root[data-vista='compacta'] .block-card { padding: clamp(14px, 3vw, 26px); }
+:root[data-vista='compacta'] .page-head { margin: 2px 0 14px; }
+:root[data-vista='compacta'] h1 { font-size: clamp(1.6rem, 4vw, 2.1rem); }
+:root[data-vista='compacta'] h2 { font-size: 1.35rem; }
+:root[data-vista='compacta'] h3 { font-size: 1.12rem; }
+:root[data-vista='compacta'] .stack > * + * { margin-top: 9px; }
+:root[data-vista='compacta'] .stack-s > * + * { margin-top: 6px; }
+:root[data-vista='compacta'] .stack-l > * + * { margin-top: 16px; }
+:root[data-vista='compacta'] .grid { gap: 10px; }
+:root[data-vista='compacta'] .trail { gap: 6px; }
+:root[data-vista='compacta'] .lesson-card { gap: 12px; }
+:root[data-vista='compacta'] .lesson-card .t { font-size: 1.12rem; }
+:root[data-vista='compacta'] .lesson-num { transform: scale(.85); margin: -4px; }
+:root[data-vista='compacta'] .block-label { margin-bottom: 10px; gap: 8px; }
+:root[data-vista='compacta'] .block-label .ic { width: 28px; height: 28px; font-size: .88rem; }
+:root[data-vista='compacta'] .block-label h2 { font-size: 1.35rem; }
+:root[data-vista='compacta'] .blk-tools { margin: -4px 0 10px; }
+:root[data-vista='compacta'] .icon-btn { width: 32px; height: 32px; font-size: .9rem; }
+:root[data-vista='compacta'] .icon-btn.sm { width: 27px; height: 27px; }
+:root[data-vista='compacta'] .btn { padding: 8px 16px; }
+:root[data-vista='compacta'] .btn.sm { padding: 5px 12px; }
+:root[data-vista='compacta'] .btn.lg { padding: 11px 22px; font-size: 1.02rem; }
+:root[data-vista='compacta'] .input, :root[data-vista='compacta'] .select, :root[data-vista='compacta'] .textarea { padding-top: 8px; padding-bottom: 8px; }
+:root[data-vista='compacta'] .filt-tog { padding: 6px 12px; }
+:root[data-vista='compacta'] .seg.big button { padding: 5px 12px; font-size: .92rem; }
+:root[data-vista='compacta'] .rich p { margin-bottom: 9px; }
+:root[data-vista='compacta'] .rich h3 { margin: 14px 0 7px; }
+:root[data-vista='compacta'] hr.orn { margin: 14px 0; }
+:root[data-vista='compacta'] .lesson-top { padding: 6px 0 8px; }
+:root[data-vista='compacta'] .lesson-foot { margin-top: 12px; }
+:root[data-vista='compacta'] .tagbar { margin-bottom: 10px; }
+:root[data-vista='compacta'] .topic-row { margin-bottom: 9px; }
+:root[data-vista='compacta'] .banco-filters { padding: 10px 12px; margin-bottom: 8px; }
+:root[data-vista='compacta'] .side { padding: 20px 14px; }
+:root[data-vista='compacta'] .app { grid-template-columns: 220px 1fr; }
+:root[data-vista='compacta'] .nav-link { padding: 7px 12px; }
+:root[data-vista='compacta'] .brand { padding-bottom: 14px; }
+@media (max-width: 860px) {
+  :root[data-vista='compacta'] .main { padding: 8px 10px calc(var(--nav-h) + 96px + env(safe-area-inset-bottom)); }
+  :root[data-vista='compacta'] .app { grid-template-columns: 1fr; }
+  :root[data-vista='compacta'] h1 { font-size: 1.6rem; }
+}

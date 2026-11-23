@@ -13,12 +13,23 @@ export function parseCached(it) {
   return p;
 }
 
+// ---------------- Tags (aulas, listas, essenciais e exercícios) ----------------
+const TG = () => (Store.state.progresso.tags ||= {});
+export const normTags = (arr) => [...new Set((arr || []).flatMap((t) => String(t).split(/[,;]/)).map((t) => t.trim().toLowerCase().replace(/\s+/g, ' ')).filter(Boolean))];
+/** Tags de um exercício/checagem (chave "id#idx"). */
+export const exTags = (key) => TG()[key] || [];
+export function setExTags(key, tags) { tags = normTags(tags); if (tags.length) TG()[key] = tags; else delete TG()[key]; save('progresso'); return tags; }
+/** Tags de item que não dá para gravar no código (item da nuvem sem ser administradora). */
+export const itemTagOverride = (id) => TG()['item:' + id];
+export function setItemTagOverride(id, tags) { if (tags == null) delete TG()['item:' + id]; else TG()['item:' + id] = normTags(tags); save('progresso'); }
+export const allTags = () => [...new Set([...ITEMS.flatMap((x) => x.tags), ...Object.entries(TG()).filter(([k]) => !k.startsWith('item:')).flatMap(([, v]) => v)])].sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
+
 export function rebuild() {
   const all = { ...Store.items.local, ...Store.items.nuvem };
   ITEMS = Object.values(all).map((it) => {
     const parsed = parseCached(it);
     const m = parsed.meta;
-    return { id: it.id, codigo: it.codigo, atualizado: it.atualizado, origem: it.origem, parsed, meta: m, tipo: m.tipo, titulo: m.titulo, materia: m.materia, mkey: m.materiaKey, tags: m.tags,
+    return { id: it.id, codigo: it.codigo, atualizado: it.atualizado, origem: it.origem, parsed, meta: m, tipo: m.tipo, titulo: m.titulo, materia: m.materia, mkey: m.materiaKey, tags: itemTagOverride(it.id) ?? m.tags,
       ordem: Store.order[it.id] ?? 1e6 + (it.atualizado || 0) / 1e13 };
   }).filter((x) => x.parsed.blocks.length)
     .sort((a, b) => a.mkey.localeCompare(b.mkey) || a.ordem - b.ordem || a.titulo.localeCompare(b.titulo, 'pt'));
@@ -254,8 +265,9 @@ export function exerciseBank() {
       let ok, erros, feito;
       if (lp || it.tipo === 'lista') { const r = lp?.res?.[idx] || {}; ok = r.st === 'ok'; erros = r.erros || 0; feito = !!r.st; }
       else { const c = ap?.chk?.[idx]; const e = ap?.chkErros?.[idx] || (c === 'erro' ? 1 : 0); ok = c === 'ok'; erros = e; feito = !!c; }
-      out.push({ key: saveKey(it.id, idx), it, idx, b, ok, erros, feito, salvo: isSaved(it.id, idx), origem: it.tipo,
-        hay: [b.topico, b.subtopico, b.descricao, b.origem, b.title, it.titulo, it.materia, it.tags.join(' '), nodesText(qNodes(b))].join(' ') });
+      const key = saveKey(it.id, idx), tags = exTags(key);
+      out.push({ key, it, idx, b, ok, erros, feito, salvo: isSaved(it.id, idx), origem: it.tipo, tags,
+        hay: [tags.join(' '), b.topico, b.subtopico, b.descricao, b.origem, b.title, it.titulo, it.materia, it.tags.join(' '), nodesText(qNodes(b))].join(' ') });
     });
   }
   return out;

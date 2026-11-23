@@ -1,5 +1,5 @@
 // Banco de exercícios: todos os exercícios de todas as listas, com busca, filtros e prática dos escolhidos.
-import { esc, plural, toast } from './util.js';
+import { esc, plural, toast, filtToggle, filtBody, wireFilt, setFiltCount } from './util.js';
 import { inl, hydrate } from './render.js';
 import * as TTS from './speech.js';
 import { Store, save } from './store.js';
@@ -9,7 +9,7 @@ import { blockHeader, blockBody, answerArea, wireAnswer, wireSay, wireStar, topi
 import { speechOf } from './render.js';
 import { isSaved } from './data.js';
 
-const F = { q: '', mat: '', top: '', sub: '', st: '', org: '', sel: new Set(), shown: 60 };
+const F = { q: '', mat: '', top: '', sub: '', st: '', org: '', tag: '', sel: new Set(), shown: 60 };
 const STATUS = [['', 'Qualquer situação'], ['pendente', 'Ainda não acertei'], ['nunca', 'Nunca feitos'], ['errado', 'Já errei'], ['ok', 'Acertados'], ['salvo', '★ Salvos']];
 const passStatus = (e, st) => !st || (st === 'pendente' && !e.ok) || (st === 'nunca' && !e.feito) || (st === 'errado' && e.erros > 0) || (st === 'ok' && e.ok) || (st === 'salvo' && e.salvo);
 const opts = (list, cur, all) => `<option value="">${all}</option>${list.map(([v, l]) => `<option value="${esc(v)}" ${cur === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}`;
@@ -25,8 +25,8 @@ export function renderBanco(el, { go }) {
   const all = exerciseBank();
   if (!all.length) { el.innerHTML = `<div class="card empty">O banco junta os exercícios de todas as listas. Ainda não há nenhuma lista.<div style="margin-top:12px"><button class="btn sm" data-goto="estudio">Importar listas</button></div></div>`; return; }
   el.innerHTML = `<div class="banco-filters card stack-s">
-      <input class="input search" type="search" data-q placeholder="Pesquisar por tópico, subtópico, descrição, enunciado…" value="${esc(F.q)}">
-      <div class="filters" data-sels></div>
+      <div class="search-row"><input class="input search" type="search" data-q placeholder="Pesquisar por tópico, subtópico, descrição, tag, enunciado…" value="${esc(F.q)}">${filtToggle('banco')}</div>
+      <div class="filters" data-sels ${filtBody('banco')}></div>
     </div>
     <div class="banco-bar row between" data-bar></div>
     <div class="stack-s" data-list></div>`;
@@ -34,7 +34,7 @@ export function renderBanco(el, { go }) {
 
   function filtered({ skip } = {}) {
     return all.filter((e) => (skip === 'org' || !F.org || e.origem === F.org) && (skip === 'mat' || !F.mat || e.it.mkey === F.mat) && (skip === 'top' || !F.top || e.b.topico === F.top) && (skip === 'sub' || !F.sub || e.b.subtopico === F.sub)
-      && (skip === 'st' || passStatus(e, F.st)) && matchQuery(e.hay, F.q));
+      && (skip === 'st' || passStatus(e, F.st)) && (skip === 'tag' || !F.tag || e.tags.includes(F.tag) || e.it.tags.includes(F.tag)) && matchQuery(e.hay, F.q));
   }
   function drawSelects() {
     const mats = materias().filter((m) => m.listas.length);
@@ -45,14 +45,19 @@ export function renderBanco(el, { go }) {
     const subs = [...new Set(baseS.map((e) => e.b.subtopico).filter(Boolean))];
     if (F.sub && !subs.includes(F.sub)) F.sub = '';
     const baseSt = filtered({ skip: 'st' });
+    const baseT = filtered({ skip: 'tag' });
+    const tagsAll = [...new Set(baseT.flatMap((e) => [...e.tags, ...e.it.tags]))].sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
+    if (F.tag && !tagsAll.includes(F.tag)) F.tag = '';
     sels.innerHTML = `${mats.length > 1 ? `<select class="select" data-f="mat">${opts(mats.map((m) => [m.key, `${m.nome} (${count(filtered({ skip: 'mat' }), (e) => e.it.mkey === m.key)})`]), F.mat, 'Todas as matérias')}</select>` : ''}
       <select class="select" data-f="top">${opts(tops.map((t) => [t, `${t} (${count(base, (e) => e.b.topico === t)})`]), F.top, 'Todos os tópicos')}</select>
       ${subs.length ? `<select class="select" data-f="sub">${opts(subs.map((t) => [t, `${t} (${count(baseS, (e) => e.b.subtopico === t)})`]), F.sub, 'Todos os subtópicos')}</select>` : ''}
       <select class="select" data-f="org"><option value="">Listas e aulas (${filtered({ skip: 'org' }).length})</option><option value="lista" ${F.org === 'lista' ? 'selected' : ''}>Só das listas (${count(filtered({ skip: 'org' }), (e) => e.origem === 'lista')})</option><option value="aula" ${F.org === 'aula' ? 'selected' : ''}>Só checagens das aulas (${count(filtered({ skip: 'org' }), (e) => e.origem === 'aula')})</option></select>
       <select class="select" data-f="st">${STATUS.map(([v, l]) => `<option value="${v}" ${F.st === v ? 'selected' : ''}>${l} (${count(baseSt, (e) => passStatus(e, v))})</option>`).join('')}</select>
-      ${F.q || F.mat || F.top || F.sub || F.st || F.org ? `<button class="btn xs ghost" data-clear>limpar filtros</button>` : ''}`;
+      ${tagsAll.length ? `<select class="select" data-f="tag">${opts(tagsAll.map((t) => [t, `🏷 ${t} (${count(baseT, (e) => e.tags.includes(t) || e.it.tags.includes(t))})`]), F.tag, 'Todas as tags')}</select>` : ''}
+      ${F.q || F.mat || F.top || F.sub || F.st || F.org || F.tag ? `<button class="btn xs ghost" data-clear>limpar filtros</button>` : ''}`;
+    setFiltCount(el, 'banco', [F.mat, F.top, F.sub, F.st, F.org, F.tag].filter(Boolean).length);
     sels.querySelectorAll('[data-f]').forEach((s) => (s.onchange = () => { F[s.dataset.f] = s.value; F.shown = 60; if (s.dataset.f === 'mat') { setStudyMat(F.mat || null); refreshFocus(); } draw(); }));
-    sels.querySelector('[data-clear]')?.addEventListener('click', () => { Object.assign(F, { q: '', mat: '', top: '', sub: '', st: '', org: '', shown: 60 }); el.querySelector('[data-q]').value = ''; draw(); });
+    sels.querySelector('[data-clear]')?.addEventListener('click', () => { Object.assign(F, { q: '', mat: '', top: '', sub: '', st: '', org: '', tag: '', shown: 60 }); el.querySelector('[data-q]').value = ''; draw(); });
   }
   function drawBar(list) {
     const selIn = list.filter((e) => F.sel.has(e.key)).length;
@@ -69,7 +74,7 @@ export function renderBanco(el, { go }) {
     };
   }
   function describe() {
-    const parts = [F.top, F.sub, F.q && `“${F.q}”`, F.org === 'aula' ? 'checagens das aulas' : F.org === 'lista' ? 'só listas' : '', STATUS.find((s) => s[0] === F.st && s[0])?.[1]].filter(Boolean);
+    const parts = [F.top, F.sub, F.tag && '🏷 ' + F.tag, F.q && `“${F.q}”`, F.org === 'aula' ? 'checagens das aulas' : F.org === 'lista' ? 'só listas' : '', STATUS.find((s) => s[0] === F.st && s[0])?.[1]].filter(Boolean);
     return F.sel.size ? 'Exercícios escolhidos' : parts.length ? parts.join(' · ') : 'Banco de exercícios';
   }
   function drawList(list) {
@@ -81,6 +86,7 @@ export function renderBanco(el, { go }) {
             <div class="tiny muted">${srcLine(e)}</div>
             ${topicLine({ topico: e.b.topico, subtopico: e.b.subtopico, descricao: e.b.descricao })}
             ${!e.b.descricao ? `<div class="small bank-prev">${inl(previewText(e.b))}</div>` : ''}
+            ${e.tags.length ? `<div class="blk-tags">${e.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
           </div>
           <div class="bank-st">${e.ok ? '<span class="status ok">✓</span>' : ''}${e.erros ? `<span class="status erro">${e.erros}✗</span>` : ''}${e.salvo ? '<span class="star-mini">★</span>' : ''}</div>
         </div><div data-full hidden></div></div>`).join('')
@@ -93,7 +99,7 @@ export function renderBanco(el, { go }) {
         if (!full.hidden) { full.hidden = true; full.innerHTML = ''; return; }
         full.hidden = false;
         setStudyMat(e.it.mkey); refreshFocus();
-        full.innerHTML = `<div class="bank-full t-${e.b.type}">${blockHeader(hdr(e), { saved: isSaved(e.it.id, e.idx) })}${blockBody({ ...e.b, topico: '', subtopico: '', descricao: '', origem: '' })}${answerArea(e.b, { rate: false })}</div>`;
+        full.innerHTML = `<div class="bank-full t-${e.b.type}">${blockHeader(hdr(e), { saved: isSaved(e.it.id, e.idx), ref: { id: e.it.id, idx: e.idx } })}${blockBody({ ...e.b, topico: '', subtopico: '', descricao: '', origem: '' })}${answerArea(e.b, { rate: false })}</div>`;
         hydrate(full); wireAnswer(full, e.b, {}); wireStar(full, e.it.id, e.idx);
         wireSay(full.querySelector('[data-sayblock]'), () => speechOf(qNodes(e.b)));
       };
@@ -103,6 +109,7 @@ export function renderBanco(el, { go }) {
   function draw() { drawSelects(); const list = filtered(); drawBar(list); drawList(list); }
   let t;
   el.querySelector('[data-q]').oninput = (e) => { clearTimeout(t); t = setTimeout(() => { F.q = e.target.value; F.shown = 60; draw(); }, 180); };
+  wireFilt(el, 'banco');
   draw();
 }
 const hdr = (e) => (e.b.type === 'exercicio' ? { ...e.b, title: e.b.title || String(e.idx + 1) } : e.b);
@@ -141,7 +148,7 @@ export function openPratica(view, { go }) {
       <div class="card block-card t-${e.b.type}" data-block>
         <div class="saved-src small">${srcLine(e)}</div>
         ${r.erros || r.pulos ? `<div class="selos">${r.erros ? `<span class="selo erro">✗ Você errou este ${r.erros === 1 ? 'uma vez' : r.erros + ' vezes'}</span>` : ''}${r.pulos ? `<span class="selo pulo">↷ pulado ${r.pulos === 1 ? 'uma vez' : r.pulos + ' vezes'}</span>` : ''}</div>` : ''}
-        ${blockHeader(hdr(e), { saved: isSaved(e.it.id, e.idx) })}${blockBody(e.b)}${answerArea(e.b, { rateLabel: 'Como foi?' })}
+        ${blockHeader(hdr(e), { saved: isSaved(e.it.id, e.idx), ref: { id: e.it.id, idx: e.idx } })}${blockBody(e.b)}${answerArea(e.b, { rateLabel: 'Como foi?' })}
       </div>
       <div class="lesson-foot"><span class="small muted" style="align-self:center">${P.fila.length === 1 ? 'Último que falta' : plural(P.fila.length, 'exercício na fila', 'exercícios na fila')}</span><button class="btn lg" data-skip>Pular ↷</button></div></div>`;
     const card = view.querySelector('[data-block]');

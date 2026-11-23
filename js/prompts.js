@@ -299,6 +299,116 @@ ${REGRAS_FORMATO('aula')}`;
 }
 export const promptAulas = (o = {}) => promptPacote({ ...o, incluir: { aulas: true } });
 
+/** Prompt para UMA aula específica (para pôr numa matéria que já tem aulas). */
+export function promptUmaAula({ materia = '', sigla = '', topicos = '', ementa = '', assunto = '', detalhes = '', existentes = [] } = {}) {
+  const M = materia.trim() || '[MATÉRIA]';
+  const S = sigla.trim() || '[sigla curta da matéria, ex.: calc3]';
+  return `Você é um professor universitário de engenharia, muito didático e claro, que explica cada assunto de forma completa (teoria e prática) sem enrolar. Monte UMA aula da matéria ${M}, a partir das fontes deste projeto.
+
+ASSUNTO DA AULA:
+${assunto.trim() || '[descreva aqui o assunto da aula: tópico, subtópico ou o que ela deve ensinar]'}
+
+DETALHES E FOCO:
+${detalhes.trim() || 'Nenhum detalhe extra.'}
+${existentes.length ? `
+AULAS QUE JÁ EXISTEM NESTA MATÉRIA (não repita o conteúdo delas; pode citar uma aula anterior quando precisar de um pré-requisito):
+${existentes.map((x, i) => `${i + 1}. ${x}`).join('\n')}
+` : ''}
+${CONTEXTO({ ementa, divisao: topicos, parte: assunto, escopoTotal: false }).replace(/\n\nFOCO E INSTRUÇÕES ESPECÍFICAS:[\s\S]*$/, '')}
+
+${FONTES('a aula', { escopoTotal: false })}
+
+ENTREGA
+1. Gere UM arquivo .txt com a aula, começando com "@tipo: aula". Nunca omita nem mude essa linha.
+2. Se a aula usar figuras ou interativos, entregue um .zip com a aula em aulas/01-titulo-resumido.txt e as figuras e interativos em midia/.
+3. Se não conseguir gerar o .zip (ou se não houver figuras), entregue a aula num bloco de código. Depois dela, cole os arquivos de texto (.html e .svg) assim:
+=== ARQUIVO: nome-do-arquivo.html ===
+[código completo]
+=== FIM DO ARQUIVO ===
+Para figuras que não sejam texto (.png, .jpg, .gif), liste no fim o nome de cada arquivo que falta e o que ele deve mostrar.
+4. Se não couber com qualidade numa resposta, divida em partes e continue quando eu escrever "continue" (eu junto as partes antes de importar).
+
+${AULA_SPEC(M, S)}
+
+${MIDIA}
+
+${CONFERENCIA}
+
+${REGRAS_FORMATO('aula')}`;
+}
+
+/** Prompt para criar exercícios novos para uma lista que já existe (só os blocos EXERCICIO, numerados a partir do próximo número). */
+export function promptExerciciosLista({ materia = '', sigla = '', divisao = '', ementa = '', lista = {}, modo = 'descricao', topicos = '', detalhes = '' } = {}) {
+  const M = materia.trim() || '[MATÉRIA]';
+  const S = sigla.trim() || '[sigla curta da matéria, ex.: calc3]';
+  const prox = (lista.n || 0) + 1;
+  const lid = lista.id || S + '-lista';
+  const det = detalhes.trim();
+  const pedido = modo === 'anexados' ? `O QUE FAZER: TRANSCREVER E RESOLVER OS EXERCÍCIOS ANEXADOS
+1. Os exercícios estão nos arquivos ou no texto que eu ANEXEI A ESTA MENSAGEM (não confunda com as fontes do projeto).
+2. Transcreva cada um exatamente como está (mesmo enunciado, dados, itens e ordem) e resolva com resultado final e resolução completa em passos numerados.
+3. Se o anexo tiver gabarito, confira a sua resolução com ele. Em @origem, diga de onde veio (ex.: "P1 2024.1, questão 2").
+4. Se um enunciado depender de uma figura do anexo, recrie a figura (SVG ou PNG).`
+    : modo === 'inspirados' ? `O QUE FAZER: CRIAR EXERCÍCIOS INSPIRADOS NOS ANEXADOS
+1. Os exercícios de referência estão nos arquivos ou no texto que eu ANEXEI A ESTA MENSAGEM.
+2. Crie exercícios NOVOS com o mesmo raciocínio, nível e estilo, mas com dados, contextos, geometrias ou funções diferentes. Não copie nenhum enunciado.
+3. Em @origem, diga qual anexado inspirou cada um (ex.: "Inspirado na P1 2024.1, questão 3").`
+    : `O QUE FAZER: CRIAR EXERCÍCIOS A PARTIR DA DESCRIÇÃO
+1. Crie exercícios novos no estilo e no nível das listas e provas das fontes do projeto.
+2. Tópicos e subtópicos: ${topicos.trim() || 'os mesmos da lista (abaixo).'}`;
+  return `Você é um professor universitário de engenharia, muito didático e conciso. Vou ACRESCENTAR exercícios a uma lista que já existe no meu app de estudos, da matéria ${M}.
+
+A LISTA QUE JÁ EXISTE
+- Título: ${lista.titulo || '[título da lista]'}
+- @id: ${lid}
+- Já tem ${lista.n || 0} exercício(s); os novos começam no número ${prox}.
+${lista.topicos?.length ? `- Tópicos e subtópicos usados nela: ${lista.topicos.join('; ')}` : ''}
+${lista.resumo?.length ? `- O que os exercícios atuais treinam (não repita nenhum):
+${lista.resumo.map((x) => '  • ' + x).join('\n')}` : ''}
+
+${pedido}
+
+DETALHES:
+${det || (modo === 'anexados' ? 'Pegue todos os exercícios anexados, na ordem do anexo.' : modo === 'inspirados' ? 'Crie 2 exercícios novos para cada anexado.' : 'Cerca de 5 exercícios, do mais simples para o mais difícil.')}
+
+${CONTEXTO({ ementa, divisao, escopoTotal: false }).replace(/\n\nPARTE DA MATÉRIA QUE QUERO AGORA:[\s\S]*$/, '')}
+
+${FONTES('os exercícios', { lista: true, escopoTotal: false })}
+
+ENTREGA (é diferente de uma lista nova)
+1. NÃO escreva cabeçalho (@tipo, @id, @materia, @titulo…). Entregue SÓ os blocos "== EXERCICIO | n", começando em "== EXERCICIO | ${prox}" e seguindo em ordem (${prox}, ${prox + 1}, ${prox + 2}…), num único bloco de código.
+2. Figuras e interativos: nomes começando por "${lid}-ex${prox}-", "${lid}-ex${prox + 1}-"… (minúsculas, sem espaços nem acentos). Se houver figuras, entregue um .zip com exercicios.txt e a pasta midia/; se não conseguir gerar o zip, cole os arquivos de texto (.html e .svg) depois dos exercícios assim:
+=== ARQUIVO: nome-do-arquivo.svg ===
+[código completo]
+=== FIM DO ARQUIVO ===
+Para figuras que não sejam texto (.png, .jpg, .gif), liste no fim o nome de cada arquivo que falta e o que ele deve mostrar.
+
+FORMATO DE CADA EXERCÍCIO (copie esta estrutura)
+== EXERCICIO | ${prox}
+@topico: [tópico da matéria, copiado exatamente da divisão acima ou dos tópicos da lista]
+@subtopico: [subtópico, idem; omita se não houver]
+@descricao: [uma frase curta dizendo o que o exercício treina]
+@origem: [opcional; ex.: P1 2024.1, livro cap. 5 ex. 12]
+@enunciado: [problema completo; itens em linhas próprias começando com (a), (b)…]
+@dica: [opcional; uma pista sem entregar a resposta]
+@formula: [opcional; fórmula(s) úteis em $$...$$, com o significado dos símbolos]
+@resposta: [resultado final de cada item, com unidade quando houver]
+@resolucao:
+1. [passo]
+2. [passo]
+
+REGRAS DOS EXERCÍCIOS
+1. Para resolver no papel, nunca de múltipla escolha. Sempre com resultado final e resolução completa em passos numerados.
+2. @dica e @formula viram os botões "Mostrar dica" e "Mostrar fórmula"; sem conteúdo útil, omita o campo inteiro.
+3. @topico, @subtopico e @descricao numa linha só cada um, com os mesmos nomes (mesma grafia) já usados na lista ou na divisão da matéria.
+
+${MIDIA}
+
+${CONFERENCIA}
+
+${REGRAS_FORMATO('lista')}`;
+}
+
 export const MODOS_LISTA = {
   anexados: 'Adicionar os exercícios anexados',
   inspirados: 'Criar exercícios inspirados nos anexados',

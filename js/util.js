@@ -70,3 +70,29 @@ export function dataURLtoBlob(d) {
   if (/;base64/.test(h)) { const bin = atob(b); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: mime }); }
   return new Blob([decodeURIComponent(b)], { type: mime });
 }
+
+// ---------- Filtros recolhíveis ----------
+const FKEY = 'oficina:filtrosAbertos';
+const fOpen = () => { try { return JSON.parse(localStorage.getItem(FKEY) || '{}'); } catch (e) { return {}; } };
+export const filtIsOpen = (name) => !!fOpen()[name];
+/** Botão "Filtros ▾" (com número de filtros ativos). */
+export const filtToggle = (name, n = 0) => `<button type="button" class="filt-tog ${filtIsOpen(name) ? 'open' : ''}" data-filttog="${name}" aria-expanded="${filtIsOpen(name)}" title="Mostrar ou recolher os filtros"><span>Filtros</span>${n ? `<b class="filt-n">${n}</b>` : ''}<span class="chev">▾</span></button>`;
+/** Atributos para o corpo dos filtros (some quando recolhido). */
+export const filtBody = (name) => `data-filtbody="${name}" ${filtIsOpen(name) ? '' : 'hidden'}`;
+export function wireFilt(root, name, onToggle) {
+  root.querySelectorAll(`[data-filttog="${name}"]`).forEach((b) => (b.onclick = () => {
+    const o = fOpen(); o[name] = !o[name];
+    try { localStorage.setItem(FKEY, JSON.stringify(o)); } catch (e) {}
+    root.querySelectorAll(`[data-filttog="${name}"]`).forEach((x) => { x.classList.toggle('open', o[name]); x.setAttribute('aria-expanded', o[name]); });
+    root.querySelectorAll(`[data-filtbody="${name}"]`).forEach((x) => (x.hidden = !o[name]));
+    onToggle?.(o[name]);
+  }));
+}
+export function setFiltCount(root, name, n) {
+  root.querySelectorAll(`[data-filttog="${name}"]`).forEach((b) => {
+    let el = b.querySelector('.filt-n');
+    if (!n) { el?.remove(); return; }
+    if (!el) { el = document.createElement('b'); el.className = 'filt-n'; b.insertBefore(el, b.querySelector('.chev')); }
+    el.textContent = n;
+  });
+}

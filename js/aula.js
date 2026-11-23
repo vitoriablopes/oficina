@@ -5,7 +5,8 @@ import { richHtml, hydrate, speechOf, inl, fitMath } from './render.js';
 import { speakable } from './math.js';
 import * as TTS from './speech.js';
 import { Store, save } from './store.js';
-import { itemById, aulaProg, setAulaProg, markCheck, bump, groupOf, toggleSaved, isSaved } from './data.js';
+import { itemById, aulaProg, setAulaProg, markCheck, bump, groupOf, toggleSaved, isSaved, exTags, saveKey } from './data.js';
+import { tagChips, copyContext, editExTags, itemTagsRow, wireItemTags } from './tags.js';
 
 let cleanup = [];
 export function teardown() { cleanup.forEach((f) => { try { f(); } catch (e) {} }); cleanup = []; TTS.stop(); }
@@ -47,21 +48,30 @@ function blockSpeech(b) {
 export const answerSpeech = (b) => `${b.resposta?.length ? 'Resposta: ' + speechOf(b.resposta) + '. ' : ''}${b.resolucao?.length ? 'Resolução. ' + speechOf(b.resolucao) : ''}`;
 
 // ---------- blocos ----------
-export function blockHeader(b, { say = true, saved = null } = {}) {
+export function blockHeader(b, { say = true, saved = null, ref = null } = {}) {
   const T = BLOCK_TYPES[b.type];
   const showTitle = b.title && !(b.type === 'exercicio' && /^\d+$/.test(b.title));
+  const tags = ref && saved != null ? exTags(saveKey(ref.id, ref.idx)) : null;
   return `<div class="block-label t-${b.type}"><span class="ic">${T.icon}</span><div class="grow"><div class="k">${T.label}${b.type === 'exercicio' && b.title ? ' ' + esc(b.title) : ''}</div>${showTitle ? `<h2>${inl(b.title)}</h2>` : ''}</div>
     ${saved != null ? `<button type="button" class="icon-btn star ${saved ? 'on' : ''}" data-savex title="${saved ? 'Tirar dos salvos' : 'Salvar este exercício'}" aria-label="Salvar">${saved ? '★' : '☆'}</button>` : ''}
-    ${say ? `<button type="button" class="icon-btn" data-sayblock title="Ouvir esta parte" aria-label="Ouvir esta parte">🔊</button>` : ''}</div>`;
+    ${say ? `<button type="button" class="icon-btn" data-sayblock title="Ouvir esta parte" aria-label="Ouvir esta parte">🔊</button>` : ''}</div>
+    ${ref ? `<div class="blk-tools no-print"><button type="button" class="btn xs ghost" data-copyctx title="Copia o código deste bloco entre <contexto> e </contexto>, para colar no ChatGPT e tirar dúvida">⧉ Copiar contexto</button>${tags ? `<button type="button" class="btn xs ghost" data-tagex>🏷 Tags</button><span class="blk-tags" data-extags>${tagChips(tags)}</span>` : ''}</div>` : ''}`;
 }
-/** Liga a estrelinha de salvar. */
+/** Liga a estrelinha de salvar, o "copiar contexto" e as tags do exercício. */
 export function wireStar(el, id, idx) {
-  const st = el.querySelector('[data-savex]'); if (!st) return;
-  st.onclick = () => {
+  const st = el.querySelector('[data-savex]');
+  if (st) st.onclick = () => {
     const on = toggleSaved(id, idx);
     st.classList.toggle('on', on); st.textContent = on ? '★' : '☆'; st.title = on ? 'Tirar dos salvos' : 'Salvar este exercício';
     toast(on ? 'Salvo em Exercícios salvos' : 'Tirado dos salvos');
   };
+  const it = itemById(id), b = it?.parsed.blocks[idx];
+  const cp = el.querySelector('[data-copyctx]');
+  if (cp && b) cp.onclick = () => copyContext(it, b);
+  const tg = el.querySelector('[data-tagex]');
+  if (tg) tg.onclick = () => editExTags(saveKey(id, idx), `${it?.titulo || ''}${b?.title ? ' · ' + b.title : ''}`, (tags) => {
+    const box = el.querySelector('[data-extags]'); if (box) box.innerHTML = tagChips(tags);
+  });
 }
 export function topicLine(b) {
   if (!b.topico && !b.subtopico && !b.descricao && !b.origem) return '';
@@ -151,7 +161,7 @@ export function openAula(view, id, { go }) {
         <div class="steps">${blocks.map((x, k) => `<button title="${esc(BLOCK_TYPES[x.type].label)}${x.title ? ' — ' + esc(x.title) : ''}" data-step="${k}" class="${k === S.i ? 'cur' : feitos.has(k) ? 'done' : ''} ${x.type === 'checagem' ? 'chk' : ''}"></button>`).join('')}</div>
         <button class="icon-btn ${S.auto ? 'playing' : ''}" data-auto title="${S.auto ? 'Parar a leitura da aula' : 'Ouvir a aula em voz alta (segue sozinha até a próxima checagem)'}">${S.auto ? '■' : '🎧'}</button>
         <span class="small muted">${S.i + 1}/${blocks.length}</span></div>
-      <div class="card block-card t-${b.type}" data-block>${blockHeader(b, { saved: b.type === 'checagem' ? isSaved(A.id, S.i) : null })}${blockBody(b)}${b.type === 'checagem' ? answerArea(b, { state: chkState, rateLabel: 'Acertou? (opcional)' }) : ''}</div>
+      <div class="card block-card t-${b.type}" data-block>${blockHeader(b, { saved: b.type === 'checagem' ? isSaved(A.id, S.i) : null, ref: { id: A.id, idx: S.i } })}${blockBody(b)}${b.type === 'checagem' ? answerArea(b, { state: chkState, rateLabel: 'Acertou? (opcional)' }) : ''}</div>
       <div class="lesson-foot"><button class="btn ghost" data-prev>${S.i > 0 ? '← Anterior' : '← Início'}</button><button class="btn primary lg" data-next>${S.i === blocks.length - 1 ? 'Concluir ✓' : 'Continuar →'}</button></div>
     </div>`;
     const card = view.querySelector('[data-block]');
@@ -199,7 +209,7 @@ export function openAula(view, id, { go }) {
         <h1>${inl(A.titulo)}</h1>
         ${m.descricao ? `<p style="margin:0;font-size:1.08em">${inl(m.descricao)}</p>` : ''}
         <div class="row">${m.tempo ? `<span class="chip">≈ ${m.tempo} min</span>` : ''}<span class="chip">${plural(blocks.length, 'parte')}</span>${nChk ? `<span class="chip butter">${plural(nChk, 'checagem', 'checagens')}</span>` : ''}${A.parsed.formulas.length ? `<span class="chip lav">${plural(A.parsed.formulas.length, 'fórmula')}</span>` : ''}</div>
-        ${A.tags.length ? `<div class="row">${A.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
+        ${itemTagsRow(A)}
         <hr class="orn">
         <div class="stack-s">${blocks.map((b, k) => `<button class="row nowrap btn ghost part-row" data-jump="${k}">
           <span class="chip t-${b.type}" style="min-width:34px;justify-content:center">${BLOCK_TYPES[b.type].icon}</span>
@@ -211,6 +221,7 @@ export function openAula(view, id, { go }) {
         ${p?.status === 'concluida' ? `<p class="small muted" style="text-align:right;margin:0">Concluída em ${fmtDate(p.concluidaEm)}</p>` : ''}
       </div></div>`;
     view.querySelector('[data-close]').onclick = back;
+    wireItemTags(view, A, () => openAula(view, A.id, { go }));
     view.querySelectorAll('[data-jump]').forEach((x) => (x.onclick = () => { S.i = +x.dataset.jump; render(); }));
     view.querySelector('[data-go]').onclick = (e) => { S.i = +e.currentTarget.dataset.go; render(); };
     view.querySelector('[data-restart]')?.addEventListener('click', () => { setAulaProg(A.id, { feitos: [], passo: 0, chk: {} }); S.i = 0; render(); });
