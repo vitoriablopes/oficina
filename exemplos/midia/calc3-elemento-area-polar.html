@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; background: #fff; font-family: Georgia, 'Times New Roman', serif; color: #2f3a4a; }
+  .wrap { padding: 10px 12px 14px; }
+  p { margin: 0 0 8px; font-size: 15px; }
+  canvas { width: 100%; height: auto; display: block; touch-action: none; }
+  label { display: flex; align-items: center; gap: 10px; font-size: 15px; margin: 6px 0; }
+  input[type=range] { flex: 1; accent-color: #5b8fbf; height: 28px; }
+  .v { min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+  .out { font-size: 15px; background: #eef5fc; border-radius: 10px; padding: 8px 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p>Mexa em <b>r</b> e em <b>Δθ</b>. Observe: o arco do pedacinho mede r·Δθ, então ele cresce quanto mais longe da origem.</p>
+  <canvas id="c" width="640" height="400"></canvas>
+  <label>r <input id="r" type="range" min="0.5" max="4" step="0.1" value="2"><span class="v" id="rv"></span></label>
+  <label>Δθ <input id="t" type="range" min="5" max="60" step="1" value="20"><span class="v" id="tv"></span></label>
+  <div class="out" id="out"></div>
+</div>
+<script>
+  const c = document.getElementById('c'), g = c.getContext('2d');
+  const R = document.getElementById('r'), T = document.getElementById('t');
+  const dr = 0.4, O = { x: 60, y: 370 }, S = 70;
+  function draw() {
+    const r = +R.value, dt = +T.value * Math.PI / 180, th0 = 25 * Math.PI / 180;
+    g.clearRect(0, 0, c.width, c.height);
+    g.strokeStyle = '#dbe6f0'; g.lineWidth = 1;
+    for (let k = 1; k <= 5; k++) { g.beginPath(); g.arc(O.x, O.y, k * S, -Math.PI / 2, 0); g.stroke(); }
+    for (let a = 0; a <= 90; a += 15) { const q = a * Math.PI / 180; g.beginPath(); g.moveTo(O.x, O.y); g.lineTo(O.x + 5.4 * S * Math.cos(q), O.y - 5.4 * S * Math.sin(q)); g.stroke(); }
+    g.strokeStyle = '#2f3a4a'; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(O.x - 10, O.y); g.lineTo(c.width - 10, O.y); g.moveTo(O.x, O.y + 10); g.lineTo(O.x, 10); g.stroke();
+    // pedacinho
+    g.beginPath();
+    g.arc(O.x, O.y, (r + dr) * S, -th0, -th0 - dt, true);
+    g.arc(O.x, O.y, r * S, -th0 - dt, -th0, false);
+    g.closePath(); g.fillStyle = 'rgba(91,143,191,.35)'; g.fill(); g.strokeStyle = '#5b8fbf'; g.lineWidth = 2.5; g.stroke();
+    // arco interno destacado
+    g.beginPath(); g.arc(O.x, O.y, r * S, -th0, -th0 - dt, true); g.strokeStyle = '#d6a23a'; g.lineWidth = 4; g.stroke();
+    g.fillStyle = '#2f3a4a'; g.font = '18px Georgia';
+    const m = th0 + dt / 2;
+    g.fillText('r·Δθ', O.x + (r * S - 46) * Math.cos(m), O.y - (r * S - 46) * Math.sin(m));
+    document.getElementById('rv').textContent = r.toFixed(1);
+    document.getElementById('tv').textContent = T.value + '°';
+    const arco = r * dt;
+    document.getElementById('out').innerHTML = `arco = r·Δθ ≈ <b>${arco.toFixed(2)}</b> &nbsp;·&nbsp; área ≈ r·Δr·Δθ ≈ <b>${(r * dr * dt).toFixed(3)}</b> (com Δr = ${dr})`;
+  }
+  R.oninput = T.oninput = draw; draw();
+</script>
+</body>
+</html>

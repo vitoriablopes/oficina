@@ -1,0 +1,27 @@
+@tipo: passo-a-passo
+@id: calc3-passos-integrais-duplas
+@materia: Cálculo 3
+@topico: Integrais duplas
+@tags: p1
+
+== QUESTAO | Calcular uma integral dupla trocando para polares
+@subtopico: Coordenadas polares
+@quando: A região é um disco, anel ou setor, ou o integrando tem $x^2 + y^2$.
+@passos:
+1. Desenhe a região e descreva-a em $r$ e $\theta$ (limites de $r$ e de $\theta$).
+2. Troque $x = r\cos\theta$, $y = r\sin\theta$ no integrando.
+3. Troque $dA$ por $r\,dr\,d\theta$.
+4. Integre primeiro em $r$, depois em $\theta$.
+@formula:
+$$\iint_R f\,dA = \int_{\alpha}^{\beta}\int_{a}^{b} f(r\cos\theta, r\sin\theta)\,r\,dr\,d\theta$$
+@cuidado: Não esqueça o $r$ do $dA$. Confira se os limites de $\theta$ cobrem só a parte pedida da região.
+@exemplo: Anel $1 \le x^2+y^2 \le 4$ com $f = x^2+y^2$: $\int_0^{2\pi}\int_1^2 r^3\,dr\,d\theta = \dfrac{15\pi}{2}$.
+
+== QUESTAO | Calcular uma integral iterada em região retangular
+@subtopico: Regiões retangulares
+@quando: Os limites são todos números (região retangular).
+@passos:
+1. Escolha a ordem que deixa a primeira integral mais fácil (Fubini garante o mesmo resultado).
+2. Integre a de dentro tratando a outra variável como constante.
+3. Integre o resultado na variável de fora.
+@cuidado: Os limites de dentro precisam ser os da variável de dentro.

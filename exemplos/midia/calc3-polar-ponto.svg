@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 280" font-family="Georgia, serif" font-size="16">
+  <rect width="360" height="280" fill="#fff"/>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f3a4a"/></marker></defs>
+  <line x1="40" y1="230" x2="330" y2="230" stroke="#2f3a4a" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="60" y1="260" x2="60" y2="20" stroke="#2f3a4a" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="318" y="252">x</text><text x="68" y="30">y</text>
+  <line x1="60" y1="230" x2="250" y2="90" stroke="#5b8fbf" stroke-width="3"/>
+  <line x1="250" y1="90" x2="250" y2="230" stroke="#9fb4c8" stroke-dasharray="5 5"/>
+  <line x1="60" y1="90" x2="250" y2="90" stroke="#9fb4c8" stroke-dasharray="5 5"/>
+  <path d="M 125 230 A 65 65 0 0 0 112 192" fill="none" stroke="#d6a23a" stroke-width="2.5"/>
+  <text x="132" y="214" fill="#a8791e" font-style="italic">θ</text>
+  <text x="140" y="150" fill="#3f6f9b" font-style="italic">r</text>
+  <circle cx="250" cy="90" r="6" fill="#5b8fbf"/>
+  <text x="260" y="84">P</text>
+  <text x="232" y="252" font-size="14">r cos θ</text>
+  <text x="2" y="95" font-size="14">r sen θ</text>
+</svg>

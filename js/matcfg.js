@@ -1,0 +1,155 @@
+// Opções da matéria: período, arquivar, clonar e organizar a ordem.
+import { esc, modal, toast, plural } from './util.js';
+import { Store, save, saveItem, touchItems } from './store.js';
+import { rebuild, itemById, groupOf, setGroupOrder, setMatCfg, matCfg, PERIODO_RE, materias, activeMaterias } from './data.js';
+import { slugify, keyOf } from './parser.js';
+import { sortable } from './sortable.js';
+
+const clone = (o) => JSON.parse(JSON.stringify(o));
+
+export function openMateriaOptions(m, { go, after } = {}) {
+  const c = matCfg(m.key);
+  const n = m.aulas.length + m.listas.length + m.essenciais.length + m.passos.length;
+  modal(`<div class="stack"><div class="row between"><h3>${esc(m.nome)}</h3><button class="btn sm ghost" data-close>Fechar</button></div>
+    <div><label class="lbl">Período</label>
+      <div class="row nowrap"><input class="input" data-per value="${esc(c.periodo || '')}" placeholder="ex.: 26.2" inputmode="decimal" maxlength="4" style="max-width:140px">
+      <div class="row" style="gap:6px">${periodSuggestions().map((p) => `<button class="chip ${c.periodo === p ? 'on' : ''}" data-ps="${p}">${p}</button>`).join('')}</div></div>
+      <p class="tiny muted" style="margin:4px 0 0">Ano com dois dígitos, ponto e 1, 2 ou 3 (para semestres ou trimestres).</p></div>
+    <label class="switch"><input type="checkbox" data-arq ${c.arquivada ? 'checked' : ''}><span class="tg"></span>Arquivada (sai da tela principal e fica em “Mais matérias”)</label>
+    <hr class="orn" style="margin:4px 0">
+    <div class="stack-s"><b>Clonar esta matéria</b><p class="small muted" style="margin:0">Cria uma cópia com todas as ${plural(n, 'aula, lista, essencial e passo a passo', 'aulas, listas, essenciais e passos a passo')}, com outro nome e período. Útil para refazer a matéria (por exemplo, depois de uma reprovação) sem perder nada.</p>
+      <button class="btn" data-clone>Clonar…</button></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn primary" data-ok>Salvar</button></div></div>`, (box, close) => {
+    const per = box.querySelector('[data-per]');
+    box.querySelectorAll('[data-ps]').forEach((b) => (b.onclick = () => { per.value = b.dataset.ps; box.querySelectorAll('[data-ps]').forEach((x) => x.classList.toggle('on', x === b)); }));
+    box.querySelector('[data-ok]').onclick = () => {
+      const v = normPeriodo(per.value);
+      if (v === null) { toast('Período inválido. Use, por exemplo, 26.1, 26.2 ou 26.3.'); per.focus(); return; }
+      setMatCfg(m.key, { periodo: v, arquivada: box.querySelector('[data-arq]').checked });
+      close(); toast('Matéria atualizada ✓'); after?.();
+    };
+    box.querySelector('[data-clone]').onclick = () => { close(); openClone(m, { go, after }); };
+  });
+}
+
+/** '' → ''; '26.2', '26,2', '2026.2' → '26.2'; inválido → null */
+export function normPeriodo(v) {
+  let t = String(v || '').trim().replace(',', '.');
+  if (!t) return '';
+  const m = t.match(/^(?:20)?(\d{2})\.([1-3])$/);
+  return m ? `${m[1]}.${m[2]}` : null;
+}
+function periodSuggestions() {
+  const d = new Date(); const y = d.getFullYear() % 100; const s = d.getMonth() < 6 ? 1 : 2;
+  const cur = `${y}.${s}`, nxt = s === 1 ? `${y}.2` : `${y + 1}.1`;
+  const used = [...new Set(materias().map((m) => m.cfg.periodo).filter(Boolean))];
+  return [...new Set([cur, nxt, ...used])].sort().slice(-5);
+}
+
+// ---------------------------------------------------------------
+//  Clonar
+// ---------------------------------------------------------------
+function openClone(m, { go, after }) {
+  const c = matCfg(m.key);
+  const sug = normPeriodo(c.periodo) ? nextPeriodo(c.periodo) : '';
+  modal(`<div class="stack"><h3>Clonar ${esc(m.nome)}</h3>
+    <div><label class="lbl">Nome da nova matéria</label><input class="input" data-nome value="${esc(m.nome + (sug ? ` (${sug})` : ' (cópia)'))}"></div>
+    <div><label class="lbl">Período da nova matéria</label><input class="input" data-per value="${esc(sug)}" placeholder="ex.: 27.1" style="max-width:140px"></div>
+    <div class="stack-s">
+      <label class="radio-row on"><input type="radio" name="cm" value="limpo" checked><span><b>Tudo limpo</b><span class="tiny muted" style="display:block">Mesmas aulas, listas, essenciais e passo a passo, com o progresso do zero (sem anotações e notas).</span></span></label>
+      <label class="radio-row"><input type="radio" name="cm" value="dados"><span><b>Com todos os dados</b><span class="tiny muted" style="display:block">Copia também o progresso: aulas concluídas, acertos e erros, exercícios salvos, favoritos e aprendidos, anotações e avaliações.</span></span></label>
+    </div>
+    <label class="switch"><input type="checkbox" data-arq checked><span class="tg"></span>Arquivar a matéria original</label>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" data-close>Cancelar</button><button class="btn primary" data-go>Clonar</button></div></div>`, (box, close) => {
+    box.querySelectorAll('input[name=cm]').forEach((r) => (r.onchange = () => box.querySelectorAll('.radio-row').forEach((x) => x.classList.toggle('on', x.contains(r) && r.checked))));
+    box.querySelector('[data-go]').onclick = async (e) => {
+      const nome = box.querySelector('[data-nome]').value.trim();
+      const per = normPeriodo(box.querySelector('[data-per]').value);
+      if (!nome) return toast('Dê um nome para a nova matéria.');
+      if (per === null) return toast('Período inválido. Use, por exemplo, 27.1.');
+      if (materias().some((x) => x.key === keyOf(nome))) return toast('Já existe uma matéria com esse nome. Escolha outro.');
+      e.target.disabled = true; e.target.textContent = 'Clonando…';
+      try {
+        const nk = await cloneMateria(m, { nome, periodo: per, dados: box.querySelector('input[name=cm]:checked').value === 'dados' });
+        if (box.querySelector('[data-arq]').checked) setMatCfg(m.key, { arquivada: true });
+        close(); toast('Matéria clonada ✓');
+        go ? go('#materia/' + nk) : after?.();
+      } catch (err) { console.error(err); toast('Erro ao clonar: ' + err.message, 5000); e.target.disabled = false; e.target.textContent = 'Clonar'; }
+    };
+  });
+}
+function nextPeriodo(p) {
+  const [y, s] = p.split('.').map(Number);
+  return s >= 2 ? `${y + 1}.1` : `${y}.${s + 1}`;
+}
+
+/** Copia todos os itens da matéria para uma matéria nova. Retorna a chave da nova matéria. */
+export async function cloneMateria(m, { nome, periodo = '', dados = false }) {
+  const nk = keyOf(nome);
+  const suf = slugify(periodo || nome, 12);
+  const map = {};
+  const taken = (id) => !!itemById(id) || Object.values(map).includes(id);
+  const all = [...m.aulas, ...m.essenciais, ...m.passos, ...m.listas];
+  for (const it of all) {
+    let nid = `${it.id}--${suf}`.slice(0, 90); let k = 2;
+    while (taken(nid)) nid = `${it.id}--${suf}-${k++}`.slice(0, 90);
+    map[it.id] = nid;
+    await saveItem({ id: nid, codigo: rewriteHeader(it.codigo, { id: nid, materia: nome }) }, { silent: true });
+  }
+  touchItems(); rebuild();
+  for (const tipo of ['aula', 'lista', 'essencial', 'passos']) {
+    const ids = groupOf(m.key, tipo).map((x) => map[x.id]).filter(Boolean);
+    if (ids.length) await setGroupOrder(ids);
+  }
+  const ordem = matCfg(m.key).ordem;
+  setMatCfg(nk, { periodo, ordem: ordem != null ? ordem - 0.5 : undefined });
+  if (dados) {
+    const P = Store.state.progresso;
+    for (const [o, n] of Object.entries(map)) {
+      if (P.aulas[o]) P.aulas[n] = clone(P.aulas[o]);
+      if (P.listas[o]) P.listas[n] = clone(P.listas[o]);
+    }
+    if (P.acomp?.[m.key]) P.acomp[nk] = clone(P.acomp[m.key]);
+    for (const bag of [P.salvos || {}, P.passos || {}]) {
+      for (const [k, v] of Object.entries({ ...bag })) {
+        const i = k.lastIndexOf('#'); const o = k.slice(0, i);
+        if (map[o]) bag[map[o] + k.slice(i)] = clone(v);
+      }
+    }
+    save('progresso');
+  }
+  return nk;
+}
+
+/** Troca @id e @materia no topo do código (ou acrescenta, se faltarem). */
+export function rewriteHeader(codigo, { id, materia }) {
+  const lines = String(codigo).replace(/\r\n?/g, '\n').split('\n');
+  let firstBlock = lines.findIndex((l) => /^\s*==[^=]/.test(l));
+  if (firstBlock < 0) firstBlock = lines.length;
+  let hasId = false, hasMat = false;
+  for (let i = 0; i < firstBlock; i++) {
+    if (/^\s*@\s*(id|codigo)\s*:/i.test(lines[i])) { lines[i] = `@id: ${id}`; hasId = true; }
+    else if (/^\s*@\s*(mat[ée]ria|disciplina|curso|cadeira)\s*:/i.test(lines[i])) { lines[i] = `@materia: ${materia}`; hasMat = true; }
+  }
+  const tipoAt = lines.findIndex((l, i) => i < firstBlock && /^\s*@\s*tipo\s*:/i.test(l));
+  const add = [!hasId && `@id: ${id}`, !hasMat && `@materia: ${materia}`].filter(Boolean);
+  if (add.length) lines.splice(tipoAt >= 0 ? tipoAt + 1 : 0, 0, ...add);
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------
+//  Organizar a ordem das matérias
+// ---------------------------------------------------------------
+export function organizeMaterias(after) {
+  const mats = activeMaterias();
+  let ids = mats.map((m) => m.key);
+  modal(`<div class="stack"><h3>Organizar matérias</h3><p class="small muted" style="margin:0">Arraste pela alça ⠿ ou use ↑ ↓.</p><div data-sort></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" data-close>Cancelar</button><button class="btn primary" data-ok>Salvar ordem</button></div></div>`, (box, close) => {
+    sortable(box.querySelector('[data-sort]'), mats.map((m) => ({ id: m.key, label: esc(m.nome), sub: m.cfg.periodo ? esc(m.cfg.periodo) : '' })), { onChange: (n) => { ids = n; } });
+    box.querySelector('[data-ok]').onclick = () => {
+      const P = (Store.state.perfil.materias ||= {});
+      ids.forEach((k, i) => { P[k] = { ...(P[k] || {}), ordem: i + 1 }; });
+      save('perfil'); close(); toast('Ordem salva ✓'); after?.();
+    };
+  });
+}

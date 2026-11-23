@@ -1,0 +1,35 @@
+rules_version = '2';
+// Regras do banco (Firestore). Cole no Console do Firebase › Firestore › Regras › Publicar.
+// Troque SEU-EMAIL@gmail.com pelo e-mail que você usa para entrar no app (o mesmo de js/config.js).
+//
+// Se você usar o MESMO projeto do Atelier, não apague as regras dele:
+// junte os blocos "oficina_…" abaixo dentro do "match /databases/{database}/documents { … }" que já existe.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function ehAdmin() {
+      return request.auth != null && request.auth.token.email in ['SEU-EMAIL@gmail.com'];
+    }
+
+    // Aulas e listas da Oficina: qualquer pessoa com o link lê; só a administradora grava.
+    match /oficina_itens/{id} {
+      allow read: if true;
+      allow write: if ehAdmin();
+    }
+    // Figuras e interativos
+    match /oficina_midia/{id} {
+      allow read: if true;
+      allow write: if ehAdmin();
+    }
+    // Ordem das trilhas e listas
+    match /oficina_config/{doc} {
+      allow read: if true;
+      allow write: if ehAdmin();
+    }
+
+    // Progresso: cada pessoa lê e escreve só o próprio (vale para o Atelier e a Oficina).
+    match /usuarios/{uid}/{documento=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

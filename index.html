@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Oficina</title>
+  <meta name="description" content="Uma oficina para estudar as matérias da faculdade: aulas em partes, checagens, listas de exercícios e folha de fórmulas.">
+  <meta name="theme-color" content="#eef5fc">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Oficina">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="side" id="side" aria-label="Navegação"></nav>
+    <main class="main">
+      <header class="topbar" id="topbar"></header>
+      <div id="view"><div class="empty"><span class="orn">✦</span>Carregando…</div></div>
+    </main>
+  </div>
+  <nav class="tabbar" id="tabbar" aria-label="Navegação"></nav>
+  <noscript><p style="padding:2rem">Este app precisa de JavaScript.</p></noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+@tipo: aula
+@id: calc3-integrais-duplas-polares
+@materia: Cálculo 3
+@topico: Integrais duplas
+@subtopico: Coordenadas polares
+@titulo: Integrais duplas em coordenadas polares
+@tags: integrais duplas, coordenadas polares, p1
+@tempo: 25
+@descricao: Quando a região é redonda, trocar x e y por r e θ deixa a integral muito mais simples.
+
+== EXPLICACAO | Por que mudar de coordenadas?
+Algumas regiões são difíceis de descrever com $x$ e $y$: discos, anéis, setores circulares. Em coordenadas polares, cada ponto é dado pela distância à origem $r$ e pelo ângulo $\theta$ medido a partir do eixo $x$ positivo.
+
+A troca é feita por:
+$$x = r\cos\theta \qquad y = r\sin\theta \qquad x^2 + y^2 = r^2$$
+
+[figura: calc3-polar-ponto.svg | Um ponto P descrito por r (distância) e θ (ângulo).]
+
+! Um disco de raio 2 centrado na origem vira simplesmente $0 \le r \le 2$ e $0 \le \theta \le 2\pi$: um "retângulo" no plano $r\theta$.
+
+== CHECAGEM
+@topico: Integrais duplas
+@subtopico: Coordenadas polares
+@descricao: Descrever uma região do plano em coordenadas polares.
+@pergunta: Descreva em coordenadas polares a região do primeiro quadrante entre as circunferências $x^2 + y^2 = 1$ e $x^2 + y^2 = 9$.
+@dica: Primeiro quadrante limita o ângulo; as circunferências limitam a distância à origem.
+@resposta: $1 \le r \le 3$ e $0 \le \theta \le \dfrac{\pi}{2}$
+@resolucao:
+1. $x^2 + y^2 = 1$ é a circunferência $r = 1$, e $x^2 + y^2 = 9$ é $r = 3$.
+2. Entre as duas: $1 \le r \le 3$.
+3. Primeiro quadrante: $x \ge 0$ e $y \ge 0$, ou seja, $0 \le \theta \le \pi/2$.
+
+== EXPLICACAO | O elemento de área não é dr dθ
+Em coordenadas cartesianas, o pedacinho de área é um retângulo $dA = dx\,dy$. Em polares, o pedacinho é um "setor de anel": a largura radial é $dr$, mas o arco tem comprimento $r\,d\theta$, porque quanto mais longe da origem, maior o arco para o mesmo ângulo.
+
+[interativo: calc3-elemento-area-polar.html | 430 | Mexa em r e em Δθ e veja o arco crescer com r.]
+
+Por isso aparece um $r$ extra, que é o jacobiano da transformação.
+
+!! Esquecer o $r$ do $dA$ é o erro mais comum nas provas.
+
+== FORMULA | Integral dupla em coordenadas polares
+@topico: Integrais duplas
+@subtopico: Coordenadas polares
+@descricao: Troca uma integral dupla em x e y por uma em r e θ.
+$$\iint_R f(x,y)\,dA = \int_{\alpha}^{\beta}\int_{a}^{b} f(r\cos\theta,\, r\sin\theta)\; r\,dr\,d\theta$$
+@leitura: a integral dupla de f de x y d A é igual à integral de alfa a beta da integral de a a b de f de r cosseno teta, r seno teta, vezes r d r d teta
+Vale quando a região é $a \le r \le b$, $\alpha \le \theta \le \beta$. O $r$ antes de $dr\,d\theta$ é o jacobiano.
+
+== EXEMPLO | Área de um disco
+@enunciado: Calcule a área do disco de raio $R$ usando coordenadas polares.
+@resolucao:
+1. Área é a integral de $f = 1$: $A = \iint_D 1\,dA$.
+2. Em polares, $D$ é $0 \le r \le R$, $0 \le \theta \le 2\pi$.
+3. $A = \int_0^{2\pi}\int_0^R r\,dr\,d\theta = \int_0^{2\pi} \dfrac{R^2}{2}\,d\theta$.
+4. $A = 2\pi \cdot \dfrac{R^2}{2} = \pi R^2$. ✓
+
+== CHECAGEM | Volta ao anel
+@topico: Integrais duplas
+@subtopico: Coordenadas polares
+@descricao: Calcular uma integral dupla num anel usando polares.
+@pergunta: Calcule $\displaystyle\iint_R (x^2 + y^2)\,dA$, onde $R$ é o anel $1 \le x^2 + y^2 \le 4$.
+@dica: $x^2 + y^2 = r^2$, e não esqueça o $r$ do $dA$: o integrando vira $r^2 \cdot r = r^3$.
+@formula:
+$$\iint_R f\,dA = \int_{\alpha}^{\beta}\int_{a}^{b} f(r\cos\theta, r\sin\theta)\,r\,dr\,d\theta$$
+Com $x^2 + y^2 = r^2$.
+@resposta: $\dfrac{15\pi}{2}$
+@resolucao:
+1. Em polares: $1 \le r \le 2$, $0 \le \theta \le 2\pi$.
+2. $\displaystyle\int_0^{2\pi}\int_1^2 r^2 \cdot r\,dr\,d\theta = \int_0^{2\pi} \left[\dfrac{r^4}{4}\right]_1^2 d\theta$.
+3. $\left[\dfrac{r^4}{4}\right]_1^2 = 4 - \dfrac{1}{4} = \dfrac{15}{4}$.
+4. $2\pi \cdot \dfrac{15}{4} = \dfrac{15\pi}{2}$.
+
+== RESUMO
+- Use polares quando a região (ou o integrando) tiver $x^2 + y^2$, discos, anéis ou setores.
+- Troca: $x = r\cos\theta$, $y = r\sin\theta$, $x^2 + y^2 = r^2$.
+- **Nunca esqueça:** $dA = r\,dr\,d\theta$.

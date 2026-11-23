@@ -1,0 +1,17 @@
+@tipo: essencial
+@id: calc3-essenciais-integrais-duplas
+@materia: Cálculo 3
+@topico: Integrais duplas
+@tags: p1
+
+== SUBTOPICO | Regiões retangulares
+- $\iint_R f\,dA$ sobre $R = [a,b]\times[c,d]$ é uma integral iterada: $\int_a^b\int_c^d f(x,y)\,dy\,dx$.
+- **Fubini:** se $f$ é contínua em $R$, a ordem de integração não muda o resultado.
+- Integre de dentro para fora, tratando a outra variável como constante.
+
+== SUBTOPICO | Coordenadas polares
+- Use quando aparecer $x^2 + y^2$, discos, anéis ou setores.
+$$x = r\cos\theta \qquad y = r\sin\theta \qquad x^2 + y^2 = r^2$$
+$$dA = r\,dr\,d\theta$$
+!! O erro mais comum é esquecer o $r$ do $dA$.
+- Disco de raio $R$: $0 \le r \le R$, $0 \le \theta \le 2\pi$.
