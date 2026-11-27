@@ -9,6 +9,10 @@ O ateliê das matérias da faculdade. Cada matéria tem:
 - **Banco de exercícios** (menu Listas): junta os exercícios de todas as listas e as checagens de todas as aulas. Pesquise por tópico, subtópico, descrição ou enunciado, filtre por matéria, origem (lista ou aula) e situação (nunca feitos, já errei, acertados, salvos), marque os que quiser e pratique só esses. Os acertos e erros voltam para a lista ou aula de origem.
 - **Exercícios salvos**: a estrelinha ☆ guarda exercícios e checagens para consultar depois, sempre dizendo de qual aula ou lista vieram (menu Listas › Salvos, ou a aba Salvos da matéria).
 - **Acompanhar** (aba de cada matéria): uma tabelinha das avaliações em formato de calendário (data, nome, peso, nota ou previsão), a **nota final**, a **previsão** (com as notas que você acha que vai tirar) e a **nota que precisa tirar** nas que faltam. Toque numa avaliação para editar. Em *Configurar o cálculo* você escolhe a média para passar e entre **média ponderada** ou **condições com nome** (ex.: “Média parcial” = P1 + P2, vale se ≥ 7; “Com prova final” = P1 + P2 + PF×2, vale se a média parcial for < 7; há um botão com esse modelo pronto). Avaliações podem ficar fora da nota necessária, usando a previsão. Embaixo, um bloco grande de anotações livres.
+- **Cada pessoa tem a própria biblioteca**: quem entra com a conta (Google ou e-mail) importa as próprias aulas, listas, essenciais, passo a passo e figuras, que ficam em `usuarios/{uid}/…` no Firestore e aparecem só para ela, em todos os aparelhos dela. Sem entrar, tudo fica só no aparelho (e dá para enviar para a conta depois, em Ajustes ou em Estúdio). A biblioteca compartilhada antiga (`oficina_itens`) pode ser copiada para a conta da administradora em Ajustes › Conta.
+- **Editar conteúdo da matéria** (✎ Editar › Editar conteúdo): tira aulas, essenciais, passo a passo e listas inteiras, ou partes delas (um exercício de uma lista, uma seção, um tipo de questão, um bloco de aula), mantendo o progresso, os salvos e as tags do resto.
+- **Apostila** (📄 Apostila na matéria): escolha as aulas, essenciais, passo a passo, o formulário e as listas que entram; sai em Arial, com capa, sumário, partes numeradas, respostas das verificações e cada lista seguida do gabarito comentado. “Imprimir / salvar PDF” gera o PDF.
+- **Esconder o tempo previsto** das aulas e **tema Escuro grafite** (cinza bem escuro), além do Noite azulada, em Ajustes › Aparência.
 - **Copiar contexto**: cada parte da aula, cada exercício, cada seção dos essenciais, cada passo a passo e cada fórmula tem o botão ⧉ “Copiar contexto”, que copia o código daquele bloco entre `<contexto>` e `</contexto>`, para colar no ChatGPT e tirar a dúvida daquele trecho.
 - **Tags**: dá para pôr e tirar tags de aulas, listas, essenciais e passo a passo (🏷 na tela da aula, da lista, dos essenciais e em Estúdio › Minhas aulas e listas) e de cada exercício ou checagem (🏷 Tags no próprio exercício). As tags entram na busca, no filtro da matéria, no banco de exercícios e nos salvos.
 - **Filtros recolhíveis**: a busca fica sempre à vista; os outros filtros ficam atrás do botão “Filtros ▾”, que mostra quantos estão ativos.
@@ -43,16 +47,15 @@ Já funciona, salvando tudo **no aparelho**. Para sincronizar, faça a parte 2.
 
 ## 2. Sincronização com Firebase
 
-> O `js/config.js` deste zip já vem com o projeto do Firebase do Atelier e o seu e-mail. Falta só acrescentar as regras `oficina_…` no Firestore (passo 4) e entrar em Ajustes.
+> O `js/config.js` deste zip já vem com o projeto do Firebase do Atelier e o seu e-mail. Se as regras do passo 4 já estão publicadas, não precisa mexer em nada: é só entrar em Ajustes.
 
-
-Pode usar **o mesmo projeto do Atelier**: a Oficina guarda tudo em coleções separadas (`oficina_itens`, `oficina_midia`, `oficina_config`), então não mistura nada.
+**Cada conta tem a própria biblioteca.** Tudo o que alguém importa fica em `usuarios/{uid}/oficina_itens` e `usuarios/{uid}/oficina_midia` (e a ordem, o perfil e o progresso em `usuarios/{uid}/oficina/…`), visível só para essa pessoa. Pode usar **o mesmo projeto do Atelier**, porque não mistura nada. As coleções `oficina_itens`, `oficina_midia` e `oficina_config` são da versão antiga (biblioteca compartilhada): a administradora (o e-mail em `admins`) copia o conteúdo de lá para a conta dela em **Ajustes › Conta e sincronização › Copiar para a minha conta**.
 
 1. Se for o mesmo projeto do Atelier: pule para o passo 4. Se for um projeto novo, siga os passos 1–5 do README do Atelier (criar projeto, ligar login com Google, criar o Firestore).
 2. Em **Authentication › Configurações › Domínios autorizados**, confira que `SEU-USUARIO.github.io` está lá.
 3. (projeto novo) Copie o `firebaseConfig` em *Configurações do projeto › Seus apps*.
 4. **Firestore › Regras**: acrescente os blocos `oficina_…` do arquivo `firestore.rules` (se for o projeto do Atelier, cole-os **dentro** do `match /databases/{database}/documents { … }` que já existe, sem apagar as regras do Atelier). Troque `SEU-EMAIL@gmail.com` pelo seu e-mail e **Publicar**.
-5. No GitHub, edite `js/config.js`: cole o `firebaseConfig` no lugar de `firebase: null` e coloque seu e-mail em `admins`.
+5. No GitHub, edite `js/config.js`: cole o `firebaseConfig` no lugar de `firebase: null` (o e-mail em `admins` só serve para copiar a biblioteca antiga).
 6. Abra o site › **Ajustes › Entrar com Google**. Faça o mesmo no celular.
 
 > Figuras grandes: cada mídia na nuvem tem limite de ~900 KB (limite do Firestore). Imagens maiores são reduzidas sozinhas na importação; um GIF muito grande fica só no aparelho (o app avisa).

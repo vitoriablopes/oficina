@@ -11,6 +11,7 @@ import { promptPacote, promptPassos, promptListas, promptUmaAula, MODELO_AULA, M
 import { reorderModal } from './app.js';
 import { editTags, setItemTags } from './tags.js';
 import { openAddExercicios } from './addex.js';
+import { contaBiblioteca, wireContaBiblioteca } from './conta.js';
 
 const TABS = [['colar', 'Colar uma'], ['importar', 'Importar vários'], ['itens', 'Minhas aulas e listas'], ['prompts', 'Prompts para IA'], ['modelo', 'Modelo do código']];
 let tab = 'colar';
@@ -142,6 +143,7 @@ async function panelItens(el, { go, v }) {
   el.innerHTML = `<div class="stack">
     <div class="row between"><div class="small muted">${plural(ITEMS.filter((x) => x.tipo === 'aula').length, 'aula')} · ${plural(ITEMS.filter((x) => x.tipo === 'lista').length, 'lista')} · ${ITEMS.filter((x) => x.tipo === 'essencial').length} essenciais · ${ITEMS.filter((x) => x.tipo === 'passos').length} passo a passo · ${plural(mats.length, 'matéria')}</div>
       <button class="btn sm" data-backup>⇩ Backup completo (.zip)</button></div>
+    ${contaBiblioteca()}
     ${!mats.length ? '<div class="card empty">Nada por aqui ainda. Use “Colar uma” ou “Importar vários”.</div>' : `<input class="input search" type="search" data-iq placeholder="Pesquisar por título, matéria, tag, id…">`}
     ${mats.map((m) => `<div class="card stack-s" data-mcard><div class="row between"><h3>${esc(m.nome)}</h3>
         <div class="row" style="gap:6px"><button class="btn xs" data-expm="${esc(m.key)}">⇩ Exportar matéria</button>${Store.isAdmin ? `<button class="btn xs ghost danger" data-delm="${esc(m.key)}">Apagar matéria</button>` : ''}</div></div>
@@ -156,6 +158,7 @@ async function panelItens(el, { go, v }) {
     el.querySelectorAll('[data-hay]').forEach((r) => { r.hidden = !matchQuery(r.dataset.hay, q); });
     el.querySelectorAll('[data-mcard]').forEach((c) => { c.hidden = !!q.trim() && !c.querySelector('[data-hay]:not([hidden])'); });
   });
+  wireContaBiblioteca(el, () => panelItens(el, { go, v }));
   el.querySelector('[data-backup]').onclick = async (e) => { e.target.disabled = true; try { await exportBackup(); } finally { e.target.disabled = false; } };
   el.querySelectorAll('[data-expm]').forEach((b) => (b.onclick = async () => { b.disabled = true; try { await exportMateria(mats.find((m) => m.key === b.dataset.expm)); } finally { b.disabled = false; } }));
   el.querySelectorAll('[data-exp]').forEach((b) => (b.onclick = () => { const [id, n] = b.dataset.exp.split('|'); exportItem(itemById(id), +n); }));

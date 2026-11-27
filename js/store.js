@@ -1,7 +1,10 @@
 // =============================================================
 //  Dados: aulas e listas (aparelho + nuvem), mídias e progresso.
 //  Sem Firebase configurado → tudo fica no aparelho.
-//  Com Firebase → login (Google ou e-mail) sincroniza entre aparelhos.
+//  Com Firebase → cada pessoa entra com a própria conta (Google ou e-mail)
+//  e tem a SUA biblioteca de aulas, listas e figuras, sincronizada entre
+//  os aparelhos dela: usuarios/{uid}/oficina_itens, …/oficina_midia,
+//  …/oficina/ordem, …/oficina/perfil e …/oficina/progresso.
 // =============================================================
 import { CONFIG } from './config.js';
 import { idbAll, idbGet, idbPut, idbDel } from './db.js';
@@ -10,7 +13,7 @@ const FB = '10.12.2';
 const LS = 'oficina:';
 const DOC_NAMES = ['perfil', 'progresso'];
 export const DEFAULTS = {
-  perfil: { nome: '', tema: 'claro', fonte: 'm', vista: 'normal', voz: '', vel: 'normal', ultima: null, aba: {}, materias: {} },
+  perfil: { nome: '', tema: 'claro', fonte: 'm', vista: 'normal', mostrarTempo: true, voz: '', vel: 'normal', ultima: null, aba: {}, materias: {} },
   progresso: { aulas: {}, listas: {}, salvos: {}, passos: {}, acomp: {}, tempo: {}, dias: {}, stats: { chk: 0, chkOk: 0, ex: 0, exOk: 0 } },
 };
 export const CLOUD_MEDIA_MAX = 900000; // caracteres por mídia na nuvem (limite de 1 MB por documento do Firestore)
@@ -37,15 +40,23 @@ export const Store = {
   items: { local: {}, nuvem: {} },
   order: {},
   orderSrc: { local: {}, nuvem: null },
-  get isAdmin() {
-    if (!this.configured) return true;
-    return !!(this.user && CONFIG.admins.map((e) => e.toLowerCase()).includes((this.user.email || '').toLowerCase()));
-  },
-  get target() { return this.configured && this.isAdmin && this.user ? 'nuvem' : 'local'; },
+  /** Cada pessoa edita a própria biblioteca (nome antigo mantido para o resto do código). */
+  get isAdmin() { return true; },
+  /** Quem estava na lista de administradoras da versão antiga (biblioteca compartilhada). */
+  get isLegacyAdmin() { return !!(this.user && (CONFIG.admins || []).map((e) => e.toLowerCase()).includes((this.user.email || '').toLowerCase())); },
+  get target() { return this.configured && this.user && fb ? 'nuvem' : 'local'; },
 };
 
 let fb = null;
 let unsubs = [];
+let itemUnsubs = [];
+/** Caminhos da biblioteca da pessoa logada. */
+const U = {
+  itens: () => fb.fs.collection(fb.db, 'usuarios', Store.user.uid, 'oficina_itens'),
+  item: (id) => fb.fs.doc(fb.db, 'usuarios', Store.user.uid, 'oficina_itens', id),
+  midia: (id) => fb.fs.doc(fb.db, 'usuarios', Store.user.uid, 'oficina_midia', id),
+  ordem: () => fb.fs.doc(fb.db, 'usuarios', Store.user.uid, 'oficina', 'ordem'),
+};
 const timers = {};
 const scope = () => (Store.user ? 'u:' + Store.user.uid + ':' : 'local:');
 
@@ -89,8 +100,7 @@ export async function saveOrder(changes) {
   if (Store.target === 'nuvem') {
     Store.orderSrc.nuvem = { ...(Store.orderSrc.nuvem || {}), ...changes };
     mergeOrder(); emit('items');
-    const { doc, setDoc } = fb.fs;
-    await setDoc(doc(fb.db, 'oficina_config', 'ordem'), { mapa: Store.orderSrc.nuvem, atualizado: Date.now() });
+    await fb.fs.setDoc(U.ordem(), { mapa: Store.orderSrc.nuvem, atualizado: Date.now() });
   } else {
     Store.orderSrc.local = { ...Store.orderSrc.local, ...changes };
     lsSet('ordem', Store.orderSrc.local);
@@ -103,8 +113,7 @@ export async function saveItem({ id, codigo }, { silent = false } = {}) {
   if (Store.target === 'nuvem') {
     Store.items.nuvem[id] = { ...data, origem: 'nuvem' };
     if (!silent) emit('items');
-    const { doc, setDoc } = fb.fs;
-    await setDoc(doc(fb.db, 'oficina_itens', id), data);
+    await fb.fs.setDoc(U.item(id), data);
   } else {
     Store.items.local[id] = { ...data, origem: 'local' };
     await idbPut('itens', data);
@@ -113,12 +122,14 @@ export async function saveItem({ id, codigo }, { silent = false } = {}) {
   return id;
 }
 export const touchItems = () => emit('items');
+/** Tira só a cópia do aparelho (depois de enviar para a conta). */
+export async function removeLocalItem(id) { if (Store.items.local[id]) { delete Store.items.local[id]; await idbDel('itens', id); } }
+export function clearLocalOrder(ids) { for (const id of ids) delete Store.orderSrc.local[id]; lsSet('ordem', Store.orderSrc.local); mergeOrder(); }
 
 export async function deleteItem(id) {
   if (Store.items.nuvem[id] && Store.target === 'nuvem') {
-    const { doc, deleteDoc } = fb.fs;
     delete Store.items.nuvem[id]; emit('items');
-    await deleteDoc(doc(fb.db, 'oficina_itens', id));
+    await fb.fs.deleteDoc(U.item(id));
   }
   if (Store.items.local[id]) { delete Store.items.local[id]; await idbDel('itens', id); emit('items'); }
 }
@@ -131,11 +142,12 @@ export async function getMedia(nome) {
   let m = null;
   try { m = await idbGet('midia', nome); } catch (e) {}
   if (!m && fb) {
-    try {
-      const { doc, getDoc } = fb.fs;
-      const snap = await getDoc(doc(fb.db, 'oficina_midia', docIdOf(nome)));
-      if (snap.exists()) { m = snap.data(); idbPut('midia', m).catch(() => {}); }
-    } catch (e) { console.warn('midia', nome, e); }
+    const { doc, getDoc } = fb.fs;
+    const refs = [...(Store.user ? [U.midia(docIdOf(nome))] : []), doc(fb.db, 'oficina_midia', docIdOf(nome))];
+    for (const ref of refs) {
+      try { const snap = await getDoc(ref); if (snap.exists()) { m = snap.data(); idbPut('midia', m).catch(() => {}); break; } }
+      catch (e) { /* sem permissão ou offline */ }
+    }
   }
   if (m) mediaMem.set(nome, m);
   return m;
@@ -143,7 +155,7 @@ export async function getMedia(nome) {
 export async function hasMedia(nome) { return !!(await getMedia(nome)); }
 const docIdOf = (nome) => nome.replace(/[\/#?\[\]*]/g, '_');
 
-/** Guarda mídias no aparelho e, se for a administradora logada, na nuvem. Retorna os nomes que ficaram só no aparelho. */
+/** Guarda mídias no aparelho e, com a conta conectada, na nuvem da pessoa. Retorna os nomes que ficaram só no aparelho. */
 export async function putMedia(list) {
   const localOnly = [];
   for (const m of list) {
@@ -152,7 +164,7 @@ export async function putMedia(list) {
     await idbPut('midia', rec);
     if (Store.target === 'nuvem') {
       if (rec.dados.length > CLOUD_MEDIA_MAX) { localOnly.push(m.nome); continue; }
-      try { const { doc, setDoc } = fb.fs; await setDoc(doc(fb.db, 'oficina_midia', docIdOf(m.nome)), rec); }
+      try { await fb.fs.setDoc(U.midia(docIdOf(m.nome)), rec); }
       catch (e) { console.warn(e); localOnly.push(m.nome); }
     }
   }
@@ -208,17 +220,46 @@ function subscribeUser() {
 }
 
 function subscribeItems() {
-  const { collection, onSnapshot, doc } = fb.fs;
-  onSnapshot(doc(fb.db, 'oficina_config', 'ordem'), (snap) => {
+  itemUnsubs.forEach((u) => u()); itemUnsubs = [];
+  Store.items.nuvem = {}; Store.orderSrc.nuvem = null; mergeOrder();
+  if (!Store.user) { emit('items'); return; }
+  const { onSnapshot } = fb.fs;
+  itemUnsubs.push(onSnapshot(U.ordem(), (snap) => {
     Store.orderSrc.nuvem = snap.exists() ? snap.data().mapa || {} : null;
     mergeOrder(); emit('items');
-  }, (err) => console.warn('ordem', err));
-  onSnapshot(collection(fb.db, 'oficina_itens'), (snap) => {
+  }, (err) => console.warn('ordem', err)));
+  itemUnsubs.push(onSnapshot(U.itens(), (snap) => {
     const out = {};
     snap.forEach((d) => { out[d.id] = { ...d.data(), id: d.id, origem: 'nuvem' }; });
     Store.items.nuvem = out;
     emit('items');
-  }, (err) => console.warn('itens', err));
+  }, (err) => { console.warn('itens', err); Store.error = err.message; }));
+}
+
+// ---------------- Biblioteca compartilhada da versão antiga ----------------
+/** Quantos itens há na biblioteca antiga (coleção oficina_itens, da época em que só a administradora enviava). */
+export async function legacyCount() {
+  if (!fb) return 0;
+  try { const { collection, getDocs } = fb.fs; return (await getDocs(collection(fb.db, 'oficina_itens'))).size; } catch (e) { return 0; }
+}
+/** Copia a biblioteca antiga (aulas, listas, figuras e ordem) para a conta de quem está logada. Itens com o mesmo id não são sobrescritos. */
+export async function importLegacy(onProg = () => {}) {
+  const { collection, getDocs, getDoc, doc, setDoc } = fb.fs;
+  const its = await getDocs(collection(fb.db, 'oficina_itens'));
+  let n = 0, pulados = 0, i = 0;
+  for (const d of its.docs) {
+    onProg(`Aulas e listas: ${++i}/${its.size}`);
+    if (Store.items.nuvem[d.id]) { pulados++; continue; }
+    await setDoc(U.item(d.id), { ...d.data(), id: d.id }); n++;
+  }
+  const md = await getDocs(collection(fb.db, 'oficina_midia'));
+  i = 0;
+  for (const d of md.docs) { onProg(`Figuras: ${++i}/${md.size}`); await setDoc(U.midia(d.id), d.data()); }
+  try {
+    const o = await getDoc(doc(fb.db, 'oficina_config', 'ordem'));
+    if (o.exists()) await setDoc(U.ordem(), { mapa: { ...(o.data().mapa || {}), ...(Store.orderSrc.nuvem || {}) }, atualizado: Date.now() });
+  } catch (e) {}
+  return { n, pulados, midias: md.size };
 }
 
 async function initFirebase() {
@@ -231,13 +272,13 @@ async function initFirebase() {
   catch (e) { db = fs.getFirestore(a); }
   const authI = auth.getAuth(a);
   fb = { app: a, auth, fs, db, authI };
-  subscribeItems();
   auth.onAuthStateChanged(authI, (u) => {
     Store.user = u ? { uid: u.uid, email: u.email, nome: u.displayName || '', foto: u.photoURL || '' } : null;
     loadLocalState();
     if (Store.user && !Store.state.perfil.nome && Store.user.nome) Store.state.perfil.nome = Store.user.nome.split(' ')[0];
     if (!Store.user) setStatus('local');
     subscribeUser();
+    subscribeItems();
     emit('auth', Store.user);
     emit('change', '*');
   });

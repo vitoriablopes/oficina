@@ -23,11 +23,16 @@ export function openMateriaOptions(m, { go, after } = {}) {
       <p class="tiny muted" style="margin:4px 0 0">Ano com dois dígitos, ponto e 1, 2 ou 3 (para semestres ou trimestres).</p></div>
     <label class="switch"><input type="checkbox" data-arq ${c.arquivada ? 'checked' : ''}><span class="tg"></span>Arquivada (sai da tela principal e fica em “Mais matérias”)</label>
     <hr class="orn" style="margin:4px 0">
+    <div class="stack-s"><b>Conteúdo</b><p class="small muted" style="margin:0">Tire aulas, essenciais, passo a passo e listas, ou só partes delas (por exemplo, um exercício de uma lista).</p>
+      <div class="row"><button class="btn" data-conteudo>Editar conteúdo…</button>${go ? '<button class="btn" data-apostila>📄 Gerar apostila…</button>' : ''}</div></div>
+    <hr class="orn" style="margin:4px 0">
     <div class="stack-s"><b>Clonar esta matéria</b><p class="small muted" style="margin:0">Cria uma cópia com todas as ${plural(n, 'aula, lista, essencial e passo a passo', 'aulas, listas, essenciais e passos a passo')}, com outro nome e período. Útil para refazer a matéria (por exemplo, depois de uma reprovação) sem perder nada.</p>
       <button class="btn" data-clone>Clonar…</button></div>
     <hr class="orn" style="margin:4px 0">
     <div class="row between"><button class="btn danger" data-delm>Excluir matéria</button><button class="btn primary" data-ok>Salvar</button></div></div>`, (box, close) => {
     const per = box.querySelector('[data-per]');
+    box.querySelector('[data-conteudo]').onclick = async () => { close(); const { openConteudo } = await import('./conteudo.js'); openConteudo(m.key, { after }); };
+    box.querySelector('[data-apostila]')?.addEventListener('click', () => { close(); go('#apostila/' + m.key); });
     box.querySelectorAll('[data-ps]').forEach((b) => (b.onclick = () => { per.value = b.dataset.ps; box.querySelectorAll('[data-ps]').forEach((x) => x.classList.toggle('on', x === b)); }));
     box.querySelector('[data-ok]').onclick = async (e) => {
       const v = normPeriodo(per.value);

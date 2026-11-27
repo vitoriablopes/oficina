@@ -5,6 +5,8 @@ import { Store, save, on } from './store.js';
 import * as TTS from './speech.js';
 import { $, esc, toast, modal, confirmBox, plural, dayKey, fmtDate, filtToggle, filtBody, wireFilt, setFiltCount } from './util.js';
 import { copyContext, itemTagsRow, wireItemTags } from './tags.js';
+import { contaBiblioteca, wireContaBiblioteca } from './conta.js';
+import { renderApostila } from './apostila.js';
 import { rebuild, ITEMS, itemById, materias, materiaByKey, aulaProg, aulaPct, listaStats, streak, dayRec, tagsOf, matchTags, setGroupOrder, bump, groupOf, savedList, exTags, saveKey, topicsOf, matchTopic, matchQuery, itemHay, qNodes, activeMaterias, byPeriodo, setMatCfg, setStudyMat, tempoMateria, fmtTempo } from './data.js';
 import { initFocus, refreshFocus } from './focus.js';
 import { openMateriaOptions, organizeMaterias, newMateria } from './matcfg.js';
@@ -29,7 +31,7 @@ function applyPrefs() {
   document.documentElement.dataset.fonte = p.fonte || 'm';
   document.documentElement.dataset.tema = p.tema || 'claro';
   document.documentElement.dataset.vista = p.vista === 'compacta' ? 'compacta' : 'normal';
-  document.querySelector('meta[name=theme-color]')?.setAttribute('content', p.tema === 'noite' ? '#1f2633' : '#eef5fc');
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', p.tema === 'noite' ? '#1f2633' : p.tema === 'grafite' ? '#121212' : '#eef5fc');
   TTS.setPrefs({ voices: p.voz ? { pt: p.voz } : {}, speed: p.vel || 'normal' });
 }
 
@@ -67,9 +69,10 @@ function route(keepScroll) {
   teardown();
   document.querySelectorAll('.modal-bg').forEach((m) => m.remove());
   const params = pending; pending = {};
-  current = { aula: 'materias', lista: 'listas', materia: 'materias', salvos: 'listas', banco: 'listas', pratica: 'listas', essencial: 'materias', passos: 'materias' }[name] || name;
+  current = { aula: 'materias', lista: 'listas', materia: 'materias', salvos: 'listas', banco: 'listas', pratica: 'listas', essencial: 'materias', passos: 'materias', apostila: 'materias' }[name] || name;
   routeName = name;
   document.body.classList.toggle('focus', ['aula', 'lista', 'pratica'].includes(name));
+  document.body.classList.toggle('ap-mode', name === 'apostila');
   shell();
   const v = view();
   setStudyMat(['aula', 'lista', 'essencial', 'passos'].includes(name) ? itemById(arg)?.mkey : null);
@@ -77,6 +80,7 @@ function route(keepScroll) {
   if (name === 'aula') { openAula(v, arg, { go }); return; }
   if (name === 'lista') { openLista(v, arg, { go }); return; }
   if (name === 'pratica') { openPratica(v, { go }); return; }
+  if (name === 'apostila') { setStudyMat(null); renderApostila(v, arg, { go }); window.scrollTo({ top: 0 }); return; }
   if (name === 'essencial') { openEssencial(v, arg); window.scrollTo({ top: 0 }); return; }
   if (name === 'passos') { const it = itemById(arg); if (it) { MF[it.mkey] = { ...(MF[it.mkey] || { tags: [] }), ptopic: it.meta.topico || '' }; renderMateria(v, it.mkey, { aba: 'passos' }); } else renderMaterias(v); window.scrollTo({ top: 0 }); return; }
   const y = window.scrollY;
@@ -280,7 +284,7 @@ function renderMateria(v, key, params = {}) {
   const s = matStats(m);
   const nFiltros = f.tags.length + (aba === 'passos' ? [f.ptopic, f.psub, f.pst].filter(Boolean).length : aba === 'formulas' ? (f.ftopic ? 1 : 0) : 0);
   v.innerHTML = `<div class="narrow fade-in"><div class="page-head"><div class="kicker"><a href="#materias" style="color:inherit">Matérias</a> ›</div>
-      <div class="row nowrap between" style="align-items:flex-start"><h1>${esc(m.nome)}</h1><button class="btn sm" data-mopt title="Editar, período, arquivar, clonar, excluir">✎ Editar</button></div>
+      <div class="row nowrap between" style="align-items:flex-start"><h1>${esc(m.nome)}</h1><div class="row nowrap" style="gap:6px"><button class="btn sm" data-apost title="Gerar apostila em PDF">📄 Apostila</button><button class="btn sm" data-mopt title="Editar nome, período, conteúdo; arquivar, clonar, excluir">✎ Editar</button></div></div>
       <p>${m.cfg.codigo ? `<span class="per-chip cod">${esc(m.cfg.codigo)}</span> ` : ''}${m.cfg.periodo ? `<span class="per-chip">${esc(m.cfg.periodo)}</span> ` : ''}${m.cfg.professor ? `<span class="small muted">${esc(m.cfg.professor)} · </span>` : ''}${m.cfg.arquivada ? '<span class="per-chip arq">arquivada</span> ' : ''}${s.aDone}/${m.aulas.length} aulas · ${s.lDone}/${m.listas.length} listas</p></div>
     <div class="row between" style="margin-bottom:14px">
       <div class="seg big" data-aba>${[['aulas', 'Aulas'], ['essenciais', 'Essenciais'], ['passos', 'Passo a passo'], ['listas', 'Listas'], ['formulas', 'Fórmulas'], ['salvos', '★ Salvos'], ['acomp', 'Acompanhar']].map(([k, l]) => `<button data-v="${k}" class="${aba === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -308,6 +312,7 @@ function renderMateria(v, key, params = {}) {
   v.querySelector('[data-reorder]')?.addEventListener('click', () => reorderModal(m, { aulas: 'aula', listas: 'lista', essenciais: 'essencial' }[aba], () => renderMateria(v, key, { aba })));
   v.querySelector('[data-print]')?.addEventListener('click', () => window.print());
   v.querySelector('[data-mopt]').onclick = () => openMateriaOptions(m, { go, after: () => renderMateria(v, key, { aba }) });
+  v.querySelector('[data-apost]').onclick = () => go('#apostila/' + key);
 }
 
 function ring(pct) {
@@ -334,7 +339,7 @@ function renderTrilha(el, m, f) {
       return `${th}<a class="card lesson-card" href="#aula/${esc(a.id)}"><div class="lesson-num ${cls}">${ring(pct)}${cls === 'done' ? '✓' : i + 1}</div>
         <div class="grow"><div class="t">${inl(a.titulo)}</div>
         ${a.meta.subtopico && a.meta.subtopico !== a.titulo ? `<div class="small" style="color:var(--accent)">${inl(a.meta.subtopico)}</div>` : ''}
-        <div class="small muted">${a.meta.tempo ? '≈ ' + a.meta.tempo + ' min · ' : ''}${plural(a.parsed.blocks.length, 'parte')}${nChk ? ' · ' + plural(nChk, 'checagem', 'checagens') : ''}${erros ? ` · <span style="color:var(--bad)">${plural(erros, 'para rever', 'para rever')}</span>` : ''}</div>
+        <div class="small muted">${a.meta.tempo && String(Store.state.perfil.mostrarTempo) !== 'false' ? '≈ ' + a.meta.tempo + ' min · ' : ''}${plural(a.parsed.blocks.length, 'parte')}${nChk ? ' · ' + plural(nChk, 'checagem', 'checagens') : ''}${erros ? ` · <span style="color:var(--bad)">${plural(erros, 'para rever', 'para rever')}</span>` : ''}</div>
         ${a.tags.length ? `<div class="blocks-mini">${a.tags.map((t) => `<span>${esc(t)}</span>`).join('')}</div>` : ''}</div><span class="muted">→</span></a>`;
     }).join('')}</div>`;
 }
@@ -534,11 +539,11 @@ function renderSettings(v) {
   let account;
   if (!Store.configured) account = `<p style="margin:0">A sincronização ainda não foi ligada. Enquanto isso, tudo fica salvo <b>neste aparelho</b>.</p>
       <p class="small muted" style="margin:0">Para sincronizar celular e computador, cole a configuração do Firebase no arquivo <code>js/config.js</code> (pode ser o mesmo projeto do Atelier). O passo a passo está no README.</p>`;
-  else if (!Store.user) account = `<p style="margin:0">Entre para sincronizar suas aulas e seu progresso em todos os aparelhos.</p>
+  else if (!Store.user) account = `<p style="margin:0">Entre com a sua conta para ter a <b>sua própria biblioteca</b>: as aulas, listas e figuras que você enviar e o seu progresso ficam na sua conta e aparecem em todos os seus aparelhos. Sem entrar, tudo fica só neste aparelho.</p>
       <div class="row"><button class="btn primary" data-google>Entrar com Google</button><button class="btn" data-emailbox>Entrar com e-mail</button></div>
       <form data-emailform hidden class="stack-s"><input class="input" type="email" name="email" placeholder="e-mail" autocomplete="email" required><input class="input" type="password" name="senha" placeholder="senha (mín. 6 caracteres)" autocomplete="current-password" required minlength="6">
         <div class="row"><button class="btn primary" type="submit">Entrar</button><button class="btn" type="button" data-create>Criar conta</button><button class="btn ghost sm" type="button" data-reset>Esqueci a senha</button></div></form>
-      ${Store.error ? `<p class="small" style="color:var(--bad)">${esc(Store.error)}</p>` : ''}`;
+      ${Store.error ? `<p class="small" style="color:var(--bad)">${esc(Store.error)}</p>` : ''}${contaBiblioteca()}`;
   else account = `<div class="row">${Store.user.foto ? `<img src="${esc(Store.user.foto)}" referrerpolicy="no-referrer" style="width:40px;height:40px;border-radius:50%">` : ''}<div class="grow"><b>${esc(Store.user.nome || Store.user.email)}</b><div class="small muted">${esc(Store.user.email || '')}${Store.isAdmin ? ' · administradora' : ''}</div></div><button class="btn sm" data-out>Sair</button></div>
       <div class="small">${syncLabel()}</div>`;
 
@@ -560,8 +565,9 @@ function renderSettings(v) {
         <li>As fórmulas são lidas pela linha <code>@leitura</code> do bloco; o resto da matemática é lido de forma aproximada.</li></ul></details>`}
     </div>
     <div class="card stack"><h3>Aparência</h3>
-      <div><label class="lbl">Tema</label>${seg('tema', [['claro', 'Dia'], ['noite', 'Noite']])}</div>
+      <div><label class="lbl">Tema</label>${seg('tema', [['claro', 'Dia'], ['noite', 'Noite azulada'], ['grafite', 'Escuro grafite']])}</div>
       <div><label class="lbl">Tamanho do texto</label>${seg('fonte', [['p', 'Pequeno'], ['m', 'Médio'], ['g', 'Grande']])}</div>
+      <div><label class="lbl">Tempo previsto das aulas</label>${seg('mostrarTempo', [['true', 'Mostrar'], ['false', 'Esconder']])}</div>
       <div><label class="lbl">Visão</label>${seg('vista', [['normal', 'Normal'], ['compacta', 'Compacta']])}<p class="tiny muted" style="margin:4px 0 0">A compacta deixa tudo um pouco menor e menos espaçado, para caber mais coisa na tela. Também dá para trocar pelo botão ▤ no menu.</p></div>
     </div>
     <div class="card stack"><h3>Instalar como app</h3>
@@ -594,6 +600,7 @@ function renderSettings(v) {
   v.querySelector('[data-create]')?.addEventListener('click', () => { if (form.reportValidity()) S.signInEmail(form.email.value, form.senha.value, true).catch(err); });
   v.querySelector('[data-reset]')?.addEventListener('click', () => { if (!form.email.value) return toast('Digite seu e-mail primeiro.'); S.resetPassword(form.email.value).then(() => toast('Enviamos um e-mail para redefinir a senha.')).catch(err); });
   v.querySelector('[data-out]')?.addEventListener('click', () => S.signOut());
+  wireContaBiblioteca(v, () => renderSettings(v));
 }
 
 // ---------------------------------------------------------------

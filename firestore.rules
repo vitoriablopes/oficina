@@ -11,7 +11,9 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email in ['SEU-EMAIL@gmail.com'];
     }
 
-    // Aulas e listas da Oficina: qualquer pessoa com o link lê; só a administradora grava.
+    // Biblioteca ANTIGA (compartilhada) da Oficina. Desde a versão com biblioteca por conta,
+    // o app só lê daqui para a administradora copiar para a conta dela (Ajustes › Conta).
+    // Depois de copiar, você pode trocar "allow read: if true" por "allow read: if ehAdmin()".
     match /oficina_itens/{id} {
       allow read: if true;
       allow write: if ehAdmin();
@@ -27,7 +29,8 @@ service cloud.firestore {
       allow write: if ehAdmin();
     }
 
-    // Progresso: cada pessoa lê e escreve só o próprio (vale para o Atelier e a Oficina).
+    // Biblioteca e progresso de cada pessoa: aulas, listas, figuras, ordem, perfil e progresso
+    // (usuarios/{uid}/oficina_itens, oficina_midia, oficina/…). Cada um lê e escreve só o próprio.
     match /usuarios/{uid}/{documento=**} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }

@@ -208,7 +208,7 @@ export function openAula(view, id, { go }) {
         <div class="caps muted">${esc(A.materia)}${m.topico ? ' · ' + esc(m.topico) : ''}${m.subtopico ? ' › ' + esc(m.subtopico) : ''}</div>
         <h1>${inl(A.titulo)}</h1>
         ${m.descricao ? `<p style="margin:0;font-size:1.08em">${inl(m.descricao)}</p>` : ''}
-        <div class="row">${m.tempo ? `<span class="chip">≈ ${m.tempo} min</span>` : ''}<span class="chip">${plural(blocks.length, 'parte')}</span>${nChk ? `<span class="chip butter">${plural(nChk, 'checagem', 'checagens')}</span>` : ''}${A.parsed.formulas.length ? `<span class="chip lav">${plural(A.parsed.formulas.length, 'fórmula')}</span>` : ''}</div>
+        <div class="row">${m.tempo && String(Store.state.perfil.mostrarTempo) !== 'false' ? `<span class="chip">≈ ${m.tempo} min</span>` : ''}<span class="chip">${plural(blocks.length, 'parte')}</span>${nChk ? `<span class="chip butter">${plural(nChk, 'checagem', 'checagens')}</span>` : ''}${A.parsed.formulas.length ? `<span class="chip lav">${plural(A.parsed.formulas.length, 'fórmula')}</span>` : ''}</div>
         ${itemTagsRow(A)}
         <hr class="orn">
         <div class="stack-s">${blocks.map((b, k) => `<button class="row nowrap btn ghost part-row" data-jump="${k}">
